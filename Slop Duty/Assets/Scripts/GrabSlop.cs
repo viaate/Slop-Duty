@@ -21,6 +21,10 @@ public class GrabSlop : MonoBehaviour
     }
     private void OnCollisionEnter2D(Collision2D collision)
     {
+        if (collision.gameObject.CompareTag("Slop"))
+        {
+            //slopColor = collision.getComponent(Slop).slopColor ;
+        }
         if (collision.gameObject.CompareTag("Slop") && Input.GetMouseButtonDown(1))
         {
             heldSlopColor = slopColor ;
