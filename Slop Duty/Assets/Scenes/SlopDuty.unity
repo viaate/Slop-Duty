@@ -408,6 +408,7 @@ GameObject:
   - component: {fileID: 1663549822}
   - component: {fileID: 1663549821}
   - component: {fileID: 1663549823}
+  - component: {fileID: 1663549824}
   m_Layer: 0
   m_Name: SlopLadle
   m_TagString: Untagged
@@ -492,6 +493,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8bff36a2249e09b40af97d6be084d335, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &1663549824
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1663549820}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebbb05d382250f34386d0ebaaaad7899, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
 --- !u!1660057539 &9223372036854775807
