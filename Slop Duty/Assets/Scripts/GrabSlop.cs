@@ -6,7 +6,8 @@ public class GrabSlop : MonoBehaviour
 {
     // Start is called before the first frame update
     bool holdingSlop ;
-    string slopColor ;
+    Color slopColor ;
+    Color heldSlopColor ;
 
     void Start()
     {
@@ -22,7 +23,7 @@ public class GrabSlop : MonoBehaviour
     {
         if (collision.gameObject.CompareTag("Slop") && Input.GetMouseButtonDown(1))
         {
-            print("Grab") ;
+            heldSlopColor = slopColor ;
         }
     }
 }
