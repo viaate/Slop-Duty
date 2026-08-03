@@ -12,8 +12,8 @@ public class UIManager : MonoBehaviour
     public bool tutorialMode ;
     void Start()
     {
-        playButton.onClick.AddListener(startGame(false)) ;
-        tutorialButton.onClick.AddListener(startGame(true)) ;
+        playButton.onClick.AddListener(startGame) ;
+        tutorialButton.onClick.AddListener(startGameTut) ;
     }
 
     // Update is called once per frame
@@ -21,9 +21,14 @@ public class UIManager : MonoBehaviour
     {
         
     }
-    public void startGame(bool isTutorial)
+    public void startGame()
     {
-        tutorialMode = isTutorial ;
+        tutorialMode = false ;
         SceneManager.LoadScene("SlopDuty") ;
+    }
+    public void startGameTut()
+    {
+        tutorialMode = true;
+        SceneManager.LoadScene("SlopDuty");
     }
 }
