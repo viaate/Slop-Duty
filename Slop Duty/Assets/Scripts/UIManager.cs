@@ -35,6 +35,6 @@ public class UIManager : MonoBehaviour
     }
     public void showTime()
     {
-        timeRemaining.text = "Time: " + Mathf.FloorToInt(timer.gameObject.GetComponent<LevelTimer>().TimeRemaining) ;
+        timeRemaining.text = "Time: " + Mathf.CeilToInt(timer.gameObject.GetComponent<LevelTimer>().TimeRemaining) ;
     }
 }
