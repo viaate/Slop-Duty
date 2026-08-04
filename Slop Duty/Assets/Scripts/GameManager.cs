@@ -89,7 +89,6 @@ public class GameManager : MonoBehaviour
 
         Stats.wrongColour++;
         if (timer != null) timer.SubtractTime(Today.penalty);
-        //Instantiate(PukePuddle, pukeposition, PukePuddle.transform.rotation) ; ?
         CountResolution();
     }
 
