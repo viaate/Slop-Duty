@@ -1,5 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
+using System;
 using UnityEngine;
 
 public class LevelTimer : MonoBehaviour
@@ -8,8 +7,13 @@ public class LevelTimer : MonoBehaviour
     public float positiveTimeScale = 1f;
     public float negativeTimeScale = 1f;
 
+    public bool IsGameOver { get; private set; }
+    public event Action OnGameOver;
+
     private void Update()
     {
+        if (IsGameOver) return;
+
         if (timeRemaining > 0)
         {
             timeRemaining -= Time.deltaTime;
@@ -17,18 +21,20 @@ public class LevelTimer : MonoBehaviour
         else
         {
             timeRemaining = 0;
-            print("Game Ober");
-            // Handle Game Over / Time Out logic here
+            IsGameOver = true;
+            OnGameOver?.Invoke(); // hook a game-over screen / UIManager to this
         }
     }
 
     public void AddTime(float timeToAdd)
     {
+        if (IsGameOver) return;
         timeRemaining += timeToAdd * positiveTimeScale;
     }
 
     public void SubtractTime(float timeToSubtract)
     {
+        if (IsGameOver) return;
         timeRemaining -= timeToSubtract * negativeTimeScale;
     }
 

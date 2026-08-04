@@ -1,19 +1,28 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class FollowMouse : MonoBehaviour
 {
-    // Start is called before the first frame update
+    private Camera cam;
+    private float zDepth;
+
     void Start()
     {
-        
+        cam = Camera.main;
+        zDepth = transform.position.z; // keep whatever z/sorting depth this object was placed at
     }
 
-    // Update is called once per frame
     void Update()
     {
-        Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition) ;
-        transform.position = mousePos ;
+        Vector3 mouseScreenPos = Input.mousePosition;
+
+        // Input.mousePosition.z is always 0, which ScreenToWorldPoint treats as
+        // "right at the camera lens." You need to tell it how far from the camera
+        // to project the point, otherwise you get garbage/near-clip coordinates.
+        mouseScreenPos.z = zDepth - cam.transform.position.z;
+
+        Vector3 worldPos = cam.ScreenToWorldPoint(mouseScreenPos);
+        worldPos.z = zDepth;
+
+        transform.position = worldPos;
     }
 }

@@ -1,17 +1,22 @@
 using UnityEngine;
 
+[RequireComponent(typeof(Student))]
 public class IndividualStudent : MonoBehaviour
 {
     private Color assignedColor;
-    private bool isStaying = true;
+    private bool isStaying = false; // don't count down until the student has actually walked into place
     private bool satisfied = false;
 
     public static LevelTimer levelTimer;
-    private float studentTimer = 10f;
+    [SerializeField] private float startingStudentTimer = 10f;
+    private float studentTimer;
 
     [Header("References")]
     [SerializeField] private SpriteRenderer studentSpriteRenderer;
     [SerializeField] private SlopOutButton slopOutButton;
+
+    private Student studentMovement;
+    private StudentQueue studentQueue;
 
     private void Awake()
     {
@@ -20,6 +25,31 @@ public class IndividualStudent : MonoBehaviour
         {
             levelTimer = FindFirstObjectByType<LevelTimer>();
         }
+
+        studentMovement = GetComponent<Student>();
+        // StudentQueue instantiates students as its own children, so this finds
+        // the queue that spawned this student.
+        studentQueue = GetComponentInParent<StudentQueue>();
+        studentTimer = startingStudentTimer;
+    }
+
+    private void OnEnable()
+    {
+        if (studentMovement != null) studentMovement.Arrived += HandleArrived;
+    }
+
+    private void OnDisable()
+    {
+        if (studentMovement != null) studentMovement.Arrived -= HandleArrived;
+    }
+
+    // Previously the 10s countdown started the instant the student object was
+    // instantiated, burning down while it was still walking in from off-screen.
+    // Now it starts once Student.cs says the student has reached its spot.
+    private void HandleArrived(Student s)
+    {
+        isStaying = true;
+        studentTimer = startingStudentTimer;
     }
 
     private void Start()
@@ -33,7 +63,6 @@ public class IndividualStudent : MonoBehaviour
 
     private void Update()
     {
-        // Handle Student Timer Countdown
         if (isStaying)
         {
             studentTimer -= Time.deltaTime;
@@ -43,7 +72,6 @@ public class IndividualStudent : MonoBehaviour
             }
         }
 
-        // Detect click on the student to serve slop
         if (Input.GetMouseButtonDown(0) && isStaying)
         {
             RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero);
@@ -79,7 +107,7 @@ public class IndividualStudent : MonoBehaviour
     private void TryServeStudent()
     {
         Slop selectedSlopObj = SlopLogic.Instance.GetSelectedSlop();
-        
+
         if (selectedSlopObj == null || !selectedSlopObj.GetIsSelected()) return;
 
         Color selectedColor = selectedSlopObj.GetColor();
@@ -139,7 +167,13 @@ public class IndividualStudent : MonoBehaviour
     private void WalkAway()
     {
         isStaying = false;
-        // Logic for walking student off-screen or destroying
+
+        // Previously this only called Destroy(), so StudentQueue never knew the
+        // student left: its internal `line` list kept a reference to a destroyed
+        // object, which would throw null-reference errors the next time the
+        // queue reflowed and shift everyone's positions/sorting incorrectly.
+        if (studentQueue != null) studentQueue.Remove(studentMovement);
+
         Destroy(gameObject, 0.5f);
     }
 

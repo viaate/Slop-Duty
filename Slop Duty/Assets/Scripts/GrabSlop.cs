@@ -1,33 +1,23 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+// Put this on the ladle (SlopLadle). Give the ladle a Collider2D with
+// "Is Trigger" checked (and a kinematic Rigidbody2D so 2D trigger events fire),
+// and make sure each Slop bucket also has a Collider2D.
+//
+// The old version tried to read a color field that was never assigned
+// (the line that set it was commented out) and only checked for a mouse
+// click inside OnCollisionEnter2D, which only fires on the single physics
+// frame the ladle first touches the bucket -- so a click a moment later
+// never registered. Simplest correct behavior: touching a bucket with the
+// ladle selects it, using the same selection system Slop.cs/SlopLogic
+// already use, so IndividualStudent's TryServeStudent() picks it up too.
 public class GrabSlop : MonoBehaviour
 {
-    // Start is called before the first frame update
-    bool holdingSlop ;
-    Color slopColor ;
-    Color heldSlopColor ;
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        Slop slop = other.GetComponent<Slop>();
+        if (slop == null) return;
 
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
-    private void OnCollisionEnter2D(Collision2D collision)
-    {
-        if (collision.gameObject.CompareTag("Slop"))
-        {
-            //slopColor = collision.getComponent(Slop).slopColor ;
-        }
-        if (collision.gameObject.CompareTag("Slop") && Input.GetMouseButtonDown(1))
-        {
-            heldSlopColor = slopColor ;
-        }
+        slop.SelectSlop();
     }
 }
