@@ -1,38 +1,58 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+[RequireComponent(typeof(SpriteRenderer))]
 public class PukePuddle : MonoBehaviour
 {
-    // Start is called before the first frame update
-    SpriteRenderer puddleVisual;
-    void Start()
+    [Tooltip("Opacity added each time a student pukes into this puddle.")]
+    [SerializeField, Range(0.01f, 1f)] private float perPuke = 0.20f;
+
+    [Tooltip("Opacity removed by each mop click.")]
+    [SerializeField, Range(0.01f, 1f)] private float perClick = 0.10f;
+
+    private SpriteRenderer visual;
+    private float opacity;
+
+    public float Opacity => opacity;
+
+    // At full opacity the counter shuts down until this is mopped off.
+    public bool IsBlocking => opacity >= 1f;
+
+    private void Awake()
     {
-        puddleVisual = GetComponent<SpriteRenderer>();
+        visual = GetComponent<SpriteRenderer>();
+        Apply();
     }
 
-    // Update is called once per frame
-    void Update()
+    public void AddPuke()
     {
-        if (Input.GetMouseButtonDown(0))
-        {
-            ChangeOpacity(-10) ;
-        }
+        opacity = Mathf.Min(1f, opacity + perPuke);
+        Apply();
     }
 
-    public void ChangeOpacity(int alpha)
+    public void Clean()
     {
-        if (((puddleVisual.color.a - alpha) > 0) && ((puddleVisual.color.a + alpha) <= 255))
+        opacity -= perClick;
+
+        if (opacity > 0f)
         {
-            puddleVisual.color = new Color(puddleVisual.color.r, puddleVisual.color.g, puddleVisual.color.b, (puddleVisual.color.a + alpha)) ;
+            Apply();
+            return;
         }
-        else if ((puddleVisual.color.a - alpha) <= 0)
-        {
-            Destroy(gameObject) ;
-        }
-        else
-        {
-            puddleVisual.color = new Color(puddleVisual.color.r, puddleVisual.color.g, puddleVisual.color.b, 255) ;
-        }
+
+        opacity = 0f;
+        Destroy(gameObject);
+    }
+
+    private void Apply()
+    {
+        // Unity alpha runs 0 to 1, not 0 to 255. The previous version compared and added
+        // values like 10 and 255 against a 0-to-1 channel, so one click drove alpha to
+        // -10 and the puddle went invisible permanently on the very first mop.
+        if (visual == null) visual = GetComponent<SpriteRenderer>();
+        if (visual == null) return;
+
+        Color c = visual.color;
+        c.a = opacity;
+        visual.color = c;
     }
 }

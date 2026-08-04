@@ -63,14 +63,21 @@ public class IndividualStudent : MonoBehaviour
 
     private void Update()
     {
-        if (!waiting || resolved) return;
+        if (resolved) return;
 
-        patienceLeft -= Time.deltaTime;
-        if (patienceLeft <= 0f)
+        // Patience only runs once they have reached the counter, but clicks are accepted
+        // from the moment they exist, so a kid can be served while still walking in.
+        // Serving early is a small skill reward: you buy back the walk time.
+        if (waiting)
         {
-            patienceLeft = 0f;
-            Resolve(false, true);
-            return;
+            patienceLeft -= Time.deltaTime;
+
+            if (patienceLeft <= 0f)
+            {
+                patienceLeft = 0f;
+                Resolve(false, true);
+                return;
+            }
         }
 
         if (!Input.GetMouseButtonDown(0)) return;
@@ -118,6 +125,9 @@ public class IndividualStudent : MonoBehaviour
         SlopLogic logic = SlopLogic.Instance;
         if (logic == null) return;
 
+        // A full puddle shuts the counter down, and you cannot serve mid-mop either.
+        if (PukeManager.Instance != null && PukeManager.Instance.ServingBlocked) return;
+
         bool saidOut = slopOutButton != null && slopOutButton.GetSlopOutPressed();
         Slop selected = logic.GetSelectedSlop();
         bool holdingSlop = selected != null && selected.GetIsSelected();
@@ -143,11 +153,13 @@ public class IndividualStudent : MonoBehaviour
         waiting = false;
 
         GameManager game = GameManager.Instance;
+        float where = transform.position.x;
+
         if (game != null)
         {
-            if (walkedOut) game.ReportWalkOut();
-            else if (correct) game.ReportCorrect();
-            else game.ReportWrong();
+            if (walkedOut) game.ReportWalkOut(where);
+            else if (correct) game.ReportCorrect(where);
+            else game.ReportWrong(where);
         }
 
         Leave();

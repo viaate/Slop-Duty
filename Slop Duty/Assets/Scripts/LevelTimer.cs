@@ -3,13 +3,12 @@ using UnityEngine;
 
 public class LevelTimer : MonoBehaviour
 {
-    [SerializeField] private float startTime = 60f;
+    [SerializeField] private float startTime = 45f;
 
     [Tooltip("Banked time is capped here. Without a cap a good player stockpiles minutes " +
              "during the easy days and the late-game bleed can never catch them, which " +
              "makes the run unlosable.")]
-    [SerializeField] private float maxTime = 90f;
-    public GameObject ui ;
+    [SerializeField] private float maxTime = 60f;
 
     public float positiveTimeScale = 1f;
     public float negativeTimeScale = 1f;
@@ -20,6 +19,14 @@ public class LevelTimer : MonoBehaviour
     public float TimeRemaining { get; private set; }
     public float MaxTime => maxTime;
     public bool Running { get; private set; }
+
+    // GameManager pushes these so the difficulty numbers all live in one file
+    // instead of being split between code and whatever is typed into the Inspector.
+    public void Configure(float start, float max)
+    {
+        startTime = start;
+        maxTime = max;
+    }
 
     public void Begin()
     {
@@ -52,14 +59,16 @@ public class LevelTimer : MonoBehaviour
         if (!Running) return;
 
         // The natural drain is always 1 second per second. It is deliberately not run
-        // through negativeTimeScale, which is only meant to scale explicit penalties.
+        // through negativeTimeScale, which only scales explicit penalties.
         Drain(Time.deltaTime);
     }
 
+    // The UI is no longer pushed from here. UIManager polls in its own Update, which
+    // removes a GetComponent call per frame and stops the timer needing to know that
+    // any UI exists at all.
     private void Drain(float seconds)
     {
         TimeRemaining -= seconds;
-        ui.gameObject.GetComponent<UIManager>().showTime() ;
         if (TimeRemaining > 0f) return;
 
         TimeRemaining = 0f;

@@ -4,18 +4,30 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
 
+    public const string TutorialPrefKey = "SlopDutyTutorial";
+
     [Header("References (found automatically if left empty)")]
     [SerializeField] private StudentQueue queue;
     [SerializeField] private LevelTimer timer;
     [SerializeField] private SlopLogic slopLogic;
+    [SerializeField] private PukeManager puke;
 
     [Header("Run")]
-    [Tooltip("0 = Sunday, the tutorial shift with no clock. 1 = Monday, the real thing.")]
+    [Tooltip("0 = Sunday, the tutorial shift with no clock. 1 = Monday, the real thing. " +
+             "The main menu's tutorial button overrides this.")]
     [SerializeField] private int startDay = 1;
 
     [Tooltip("Share of kids who want a colour that is not on the counter. " +
              "For them the only correct answer is the sorry-we're-out button.")]
     [SerializeField, Range(0f, 0.5f)] private float outOfStockChance = 0.12f;
+
+    [Header("Clock")]
+    [Tooltip("Seconds you start the shift with.")]
+    [SerializeField] private float startClock = 45f;
+
+    [Tooltip("Ceiling on banked time. This is what stops a good player stockpiling " +
+             "minutes on the easy days and coasting through the hard ones.")]
+    [SerializeField] private float clockCap = 60f;
 
     [SerializeField] private bool freezeOnGameOver = true;
 
@@ -26,6 +38,9 @@ public class GameManager : MonoBehaviour
     public float OutOfStockChance => outOfStockChance;
 
     private int resolvedToday;
+
+    public int ResolvedToday => resolvedToday;
+    public int QuotaToday => Today.quota;
 
     private void Awake()
     {
@@ -47,6 +62,11 @@ public class GameManager : MonoBehaviour
         if (queue == null) queue = FindFirstObjectByType<StudentQueue>();
         if (timer == null) timer = FindFirstObjectByType<LevelTimer>();
         if (slopLogic == null) slopLogic = FindFirstObjectByType<SlopLogic>();
+        if (puke == null) puke = FindFirstObjectByType<PukeManager>();
+
+        // The main menu writes this because a plain bool on UIManager is destroyed
+        // along with the menu scene, so the tutorial button used to do nothing.
+        if (PlayerPrefs.GetInt(TutorialPrefKey, 0) == 1) startDay = 0;
 
         Stats.Reset();
         Day = startDay;
@@ -54,7 +74,9 @@ public class GameManager : MonoBehaviour
 
         if (timer == null) return;
 
+        timer.Configure(startClock, clockCap);
         timer.Expired += OnTimerExpired;
+
         if (Day > 0) timer.Begin();   // Sunday runs without a clock
     }
 
@@ -72,9 +94,10 @@ public class GameManager : MonoBehaviour
         if (slopLogic != null) slopLogic.GeneratePalette(Today.slopColors);
     }
 
-    // --- called by IndividualStudent ---
+    // --- called by IndividualStudent. worldX is where the kid was standing, so a
+    //     failure leaves its mess underneath them rather than in a fixed spot. ---
 
-    public void ReportCorrect()
+    public void ReportCorrect(float worldX)
     {
         if (RunOver) return;
 
@@ -83,30 +106,23 @@ public class GameManager : MonoBehaviour
         CountResolution();
     }
 
-    public void ReportWrong()
+    public void ReportWrong(float worldX)
     {
         if (RunOver) return;
 
         Stats.wrongColour++;
         if (timer != null) timer.SubtractTime(Today.penalty);
-        /* if(PukePuddle.active != true)
-         * {
-         *     Instantiate(PukePuddle Object, Puddle Position, PukePuddle.transform.rotation) ;
-         * }
-         * else
-         * {
-         *     PukePuddle.ChangeOpacity(50) ;
-         * } */
-
+        if (puke != null) puke.AddMess(worldX);
         CountResolution();
     }
 
-    public void ReportWalkOut()
+    public void ReportWalkOut(float worldX)
     {
         if (RunOver) return;
 
         Stats.walkedOut++;
         if (timer != null) timer.SubtractTime(Today.penalty);
+        if (puke != null) puke.AddMess(worldX);
         CountResolution();
     }
 

@@ -12,6 +12,12 @@ public class SlopLogic : MonoBehaviour
     private List<Slop> slopObjects = new List<Slop>();
 
     private Slop selectedSlop;
+    private int activeCount;
+
+    // How many pans are currently switched on. This is the brief's third difficulty
+    // lever, and it is capped by how many SlopType objects exist in the scene.
+    public int ActivePanCount => activeCount;
+    public int TotalPanCount => slopObjects.Count;
 
     private void Awake()
     {
@@ -22,12 +28,28 @@ public class SlopLogic : MonoBehaviour
         }
 
         Instance = this;
+
+        CollectSlops();
         GeneratePalette(startingColors);
     }
 
     private void OnDestroy()
     {
         if (Instance == this) Instance = null;
+    }
+
+    // Gathered here rather than waiting for each Slop to register itself in Start,
+    // because Awake on this object runs before any Start, so the palette would
+    // otherwise be generated against an empty counter.
+    private void CollectSlops()
+    {
+        Slop[] found = FindObjectsByType<Slop>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+        slopObjects.Clear();
+        slopObjects.AddRange(found);
+
+        // Left to right, so switching pans on and off fills the counter predictably.
+        slopObjects.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
     }
 
     // --- PALETTE ---
@@ -37,16 +59,21 @@ public class SlopLogic : MonoBehaviour
     // which is what stops two near-identical greens landing on the counter together.
     public void GeneratePalette(int count)
     {
-        count = Mathf.Max(1, count);
-        colors.Clear();
+        if (slopObjects.Count == 0) CollectSlops();
 
+        // The palette can never be larger than the number of pans actually on the counter.
+        // If it were, students would ask for colours that physically are not there, every
+        // one of those would count as "we're out", and the game would be unplayable.
+        activeCount = Mathf.Clamp(count, 1, Mathf.Max(1, slopObjects.Count));
+
+        colors.Clear();
         float wheelOffset = Random.value;
 
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < activeCount; i++)
         {
             // Jitter stays inside the sector so colours can never cross into each other.
-            float jitter = Random.Range(-0.35f, 0.35f) / count;
-            float hue = Mathf.Repeat(wheelOffset + (i / (float)count) + jitter, 1f);
+            float jitter = Random.Range(-0.35f, 0.35f) / activeCount;
+            float hue = Mathf.Repeat(wheelOffset + (i / (float)activeCount) + jitter, 1f);
 
             float saturation = Random.Range(0.55f, 0.95f);
             float value = Random.Range(0.45f, 0.90f);
@@ -54,16 +81,23 @@ public class SlopLogic : MonoBehaviour
             colors.Add(Color.HSVToRGB(hue, saturation, value));
         }
 
-        RecolourSlops();
+        ApplyToCounter();
     }
 
-    private void RecolourSlops()
+    private void ApplyToCounter()
     {
         for (int i = 0; i < slopObjects.Count; i++)
         {
-            if (slopObjects[i] == null) continue;
-            slopObjects[i].SetColor(GetColor(i));
+            Slop s = slopObjects[i];
+            if (s == null) continue;
+
+            bool on = i < activeCount;
+            s.gameObject.SetActive(on);
+
+            if (on) s.SetColor(GetColor(i));
         }
+
+        selectedSlop = null;
     }
 
     public Color GetColor(int index)
@@ -78,10 +112,10 @@ public class SlopLogic : MonoBehaviour
 
     public int GetColorCount() => colors.Count;
 
-    // True if any pan currently on the counter is this colour.
+    // True if a pan that is currently switched on is this colour.
     public bool IsOnCounter(Color wanted)
     {
-        for (int i = 0; i < slopObjects.Count; i++)
+        for (int i = 0; i < slopObjects.Count && i < activeCount; i++)
         {
             if (slopObjects[i] == null) continue;
             if (slopObjects[i].GetColor() == wanted) return true;
@@ -136,7 +170,8 @@ public class SlopLogic : MonoBehaviour
         if (slop == null || slopObjects.Contains(slop)) return;
 
         slopObjects.Add(slop);
-        slop.SetColor(GetColor(slopObjects.Count - 1));
+        slopObjects.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
+        ApplyToCounter();
     }
 
     public List<Slop> GetSlopObjectsList() => slopObjects;
