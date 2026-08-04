@@ -5,10 +5,10 @@ using UnityEngine;
 public class PukePuddle : MonoBehaviour
 {
     // Start is called before the first frame update
-    SpriteRenderer s ;
+    SpriteRenderer puddleVisual ;
     void Start()
     {
-        s = GetComponent<SpriteRenderer>() ;
+        puddleVisual = GetComponent<SpriteRenderer>() ;
     }
 
     // Update is called once per frame
@@ -19,6 +19,6 @@ public class PukePuddle : MonoBehaviour
 
     public void ChangeOpacity(int alpha)
     {
-        s.color = new Color(86, 154, 2, alpha) ;
+        puddleVisual.color = new Color(86, 154, 2, alpha) ;
     }
 }

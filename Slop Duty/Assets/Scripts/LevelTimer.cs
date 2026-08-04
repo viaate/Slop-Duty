@@ -9,6 +9,7 @@ public class LevelTimer : MonoBehaviour
              "during the easy days and the late-game bleed can never catch them, which " +
              "makes the run unlosable.")]
     [SerializeField] private float maxTime = 90f;
+    public GameObject ui ;
 
     public float positiveTimeScale = 1f;
     public float negativeTimeScale = 1f;
@@ -58,6 +59,7 @@ public class LevelTimer : MonoBehaviour
     private void Drain(float seconds)
     {
         TimeRemaining -= seconds;
+        ui.gameObject.GetComponent<UIManager>().showTime() ;
         if (TimeRemaining > 0f) return;
 
         TimeRemaining = 0f;
