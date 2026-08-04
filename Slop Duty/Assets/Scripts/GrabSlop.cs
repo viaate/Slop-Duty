@@ -23,7 +23,7 @@ public class GrabSlop : MonoBehaviour
     {
         if (collision.gameObject.CompareTag("Slop"))
         {
-            //slopColor = collision.getComponent(Slop).slopColor ;
+            slopColor = collision.gameObject.GetComponent<Slop>().GetColor() ;
         }
         if (collision.gameObject.CompareTag("Slop") && Input.GetMouseButtonDown(1))
         {
