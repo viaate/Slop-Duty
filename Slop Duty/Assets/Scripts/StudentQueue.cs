@@ -3,33 +3,34 @@ using UnityEngine;
 
 public class StudentQueue : MonoBehaviour
 {
-    [SerializeField] Student studentPrefab;
+    [SerializeField] private Student studentPrefab;
 
     [Header("Line layout (offsets from this object)")]
-    [SerializeField, Min(1)] int maxStudents = 4;
-    [SerializeField] float frontX = 6f;    // where the kid at the front stands
-    [SerializeField] float backX  = -6f;   // where the last kid stands when the line is full
-    [SerializeField] float spawnX = -13f;  // off the left edge
+    [SerializeField, Min(1)] private int maxStudents = 4;
+    [SerializeField] private float frontX = 6f;    // where the kid at the front stands
+    [SerializeField] private float backX = -6f;    // where the last kid stands when the line is full
+    [SerializeField] private float spawnX = -13f;  // off the left edge
 
     [Tooltip("0 = perfectly even. 1 = as scattered as it can get while keeping right-to-left order.")]
-    [SerializeField, Range(0f, 1f)] float lineJitter = 0.5f;
+    [SerializeField, Range(0f, 1f)] private float lineJitter = 0.5f;
 
     [Header("Walk speed (units per second)")]
-    [SerializeField] float walkInSpeedMin = 5f;
-    [SerializeField] float walkInSpeedMax = 7f;
-    [SerializeField] float shuffleSpeed   = 14f;
+    [SerializeField, Min(0.01f)] private float walkInSpeedMin = 5f;
+    [SerializeField, Min(0.01f)] private float walkInSpeedMax = 7f;
+    [SerializeField, Min(0.01f)] private float shuffleSpeed = 14f;
 
-    [Header("Arrivals")]
-    [SerializeField] float spawnInterval = 3f;
+    [Header("Driven by DayConfig at runtime")]
+    [SerializeField] private float spawnInterval = 3f;
 
-    readonly List<Student> line = new List<Student>();
-    float spawnTimer;
+    private readonly List<Student> line = new List<Student>();
+    private float spawnTimer;
+    private bool spawning = true;
 
     public int Capacity => maxStudents;
     public int Count => line.Count;
     public bool IsFull => line.Count >= maxStudents;
 
-    void Awake()
+    private void Awake()
     {
         if (studentPrefab != null) return;
 
@@ -37,8 +38,17 @@ public class StudentQueue : MonoBehaviour
         enabled = false;
     }
 
-    void Update()
+    public void Configure(DayConfig day)
     {
+        spawnInterval = day.arrivalInterval;
+    }
+
+    public void StopSpawning() => spawning = false;
+
+    private void Update()
+    {
+        if (!spawning) return;
+
         spawnTimer -= Time.deltaTime;
         if (spawnTimer > 0f) return;
 
@@ -46,20 +56,26 @@ public class StudentQueue : MonoBehaviour
         TrySpawn();
     }
 
-    void TrySpawn()
+    private void TrySpawn()
     {
         if (IsFull) return;
 
         Student s = Instantiate(studentPrefab, SpawnPos(), Quaternion.identity, transform);
 
-        s.SlotOffset   = Random.Range(-1f, 1f);
-        s.WalkInSpeed  = Random.Range(walkInSpeedMin, walkInSpeedMax);
-        s.ShuffleSpeed = shuffleSpeed;
+        s.SlotOffset = Random.Range(-1f, 1f);
+        s.SpeedRoll = Random.value;
+
+        // Handed over explicitly rather than found with GetComponentInParent during Awake.
+        // If this is missed, the student is destroyed without telling the queue and the
+        // line silently stops closing up behind them.
+        IndividualStudent kid = s.GetComponent<IndividualStudent>();
+        if (kid != null) kid.SetQueue(this);
 
         StudentLook look = s.GetComponentInChildren<StudentLook>();
         if (look != null) look.Randomize();
 
         line.Add(s);
+        ApplySpeeds();
         Reflow();
     }
 
@@ -69,23 +85,39 @@ public class StudentQueue : MonoBehaviour
         Reflow();
     }
 
-    void Reflow()
+    private void ApplySpeeds()
     {
-        for (int i = 0; i < line.Count; i++)
+        // Speeds are re-applied from a per-student roll rather than set once at spawn,
+        // so dragging the sliders during Play updates everyone already on screen.
+        foreach (Student s in line)
         {
-            line[i].SetQueueIndex(i);
-            line[i].WalkTo(SlotX(i) + line[i].SlotOffset * MaxJitter);
+            if (s == null) continue;
+            s.WalkInSpeed = Mathf.Lerp(walkInSpeedMin, walkInSpeedMax, s.SpeedRoll);
+            s.ShuffleSpeed = shuffleSpeed;
         }
     }
 
-    Vector3 SpawnPos() => transform.position + new Vector3(spawnX, 0f, 0f);
+    private void Reflow()
+    {
+        // Safety net. If anything ever destroys a student without calling Remove, this
+        // stops the queue jamming at IsFull forever and stops Reflow throwing on nulls.
+        line.RemoveAll(s => s == null);
 
-    float Spacing => maxStudents <= 1 ? 0f : Mathf.Abs(frontX - backX) / (maxStudents - 1);
+        for (int i = 0; i < line.Count; i++)
+        {
+            line[i].SetQueueIndex(i);
+            line[i].WalkTo(SlotX(i) + (line[i].SlotOffset * MaxJitter));
+        }
+    }
+
+    private Vector3 SpawnPos() => transform.position + new Vector3(spawnX, 0f, 0f);
+
+    private float Spacing => maxStudents <= 1 ? 0f : Mathf.Abs(frontX - backX) / (maxStudents - 1);
 
     // 0.45 rather than 0.5 so two neighbours can never land on the exact same spot
-    float MaxJitter => Spacing * 0.45f * lineJitter;
+    private float MaxJitter => Spacing * 0.45f * lineJitter;
 
-    float SlotX(int index)
+    private float SlotX(int index)
     {
         float offset = maxStudents <= 1
             ? frontX
@@ -94,12 +126,17 @@ public class StudentQueue : MonoBehaviour
         return transform.position.x + offset;
     }
 
-    void OnValidate()
+    private void OnValidate()
     {
-        if (Application.isPlaying) Reflow();
+        walkInSpeedMax = Mathf.Max(walkInSpeedMax, walkInSpeedMin);
+
+        if (!Application.isPlaying) return;
+
+        ApplySpeeds();
+        Reflow();
     }
 
-    void OnDrawGizmos()
+    private void OnDrawGizmos()
     {
         Vector3 origin = transform.position;
 

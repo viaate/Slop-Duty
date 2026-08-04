@@ -1,41 +1,67 @@
-using System.Collections;
-using System.Collections.Generic;
+using System;
 using UnityEngine;
 
 public class LevelTimer : MonoBehaviour
 {
-    public float timeRemaining = 60f;
+    [SerializeField] private float startTime = 60f;
+
+    [Tooltip("Banked time is capped here. Without a cap a good player stockpiles minutes " +
+             "during the easy days and the late-game bleed can never catch them, which " +
+             "makes the run unlosable.")]
+    [SerializeField] private float maxTime = 90f;
+
     public float positiveTimeScale = 1f;
     public float negativeTimeScale = 1f;
 
-    private void Update()
+    // Fires exactly once, when the clock reaches zero.
+    public event Action Expired;
+
+    public float TimeRemaining { get; private set; }
+    public float MaxTime => maxTime;
+    public bool Running { get; private set; }
+
+    public void Begin()
     {
-        if (timeRemaining > 0)
-        {
-            timeRemaining -= Time.deltaTime;
-        }
-        else
-        {
-            timeRemaining = 0;
-            print("Game Ober");
-            // Handle Game Over / Time Out logic here
-        }
+        TimeRemaining = startTime;
+        Running = true;
     }
+
+    public void Stop() => Running = false;
 
     public void AddTime(float timeToAdd)
     {
-        timeRemaining += timeToAdd * positiveTimeScale;
+        if (!Running) return;
+        TimeRemaining = Mathf.Min(TimeRemaining + (timeToAdd * positiveTimeScale), maxTime);
     }
 
     public void SubtractTime(float timeToSubtract)
     {
-        timeRemaining -= timeToSubtract * negativeTimeScale;
+        if (!Running) return;
+        Drain(timeToSubtract * negativeTimeScale);
     }
 
-    // Optional getters/setters for progression scaling
     public void SetTimeScales(float posScale, float negScale)
     {
         positiveTimeScale = posScale;
         negativeTimeScale = negScale;
+    }
+
+    private void Update()
+    {
+        if (!Running) return;
+
+        // The natural drain is always 1 second per second. It is deliberately not run
+        // through negativeTimeScale, which is only meant to scale explicit penalties.
+        Drain(Time.deltaTime);
+    }
+
+    private void Drain(float seconds)
+    {
+        TimeRemaining -= seconds;
+        if (TimeRemaining > 0f) return;
+
+        TimeRemaining = 0f;
+        Running = false;
+        Expired?.Invoke();
     }
 }

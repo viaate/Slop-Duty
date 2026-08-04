@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -6,73 +5,165 @@ public class SlopLogic : MonoBehaviour
 {
     public static SlopLogic Instance;
 
+    [Tooltip("Used only if there is no GameManager driving the day. GameManager overrides this.")]
+    [SerializeField, Range(1, 10)] private int startingColors = 3;
+
     private List<Color> colors = new List<Color>();
     private List<Slop> slopObjects = new List<Slop>();
-    
+
     private Slop selectedSlop;
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+        GeneratePalette(startingColors);
     }
 
-    // --- COLOR LIST METHODS ---
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
+    }
+
+    // --- PALETTE ---
+
+    // Hue stratified: the colour wheel is cut into `count` sectors and each colour is
+    // drawn from its own sector. That makes a minimum hue gap structural instead of lucky,
+    // which is what stops two near-identical greens landing on the counter together.
+    public void GeneratePalette(int count)
+    {
+        count = Mathf.Max(1, count);
+        colors.Clear();
+
+        float wheelOffset = Random.value;
+
+        for (int i = 0; i < count; i++)
+        {
+            // Jitter stays inside the sector so colours can never cross into each other.
+            float jitter = Random.Range(-0.35f, 0.35f) / count;
+            float hue = Mathf.Repeat(wheelOffset + (i / (float)count) + jitter, 1f);
+
+            float saturation = Random.Range(0.55f, 0.95f);
+            float value = Random.Range(0.45f, 0.90f);
+
+            colors.Add(Color.HSVToRGB(hue, saturation, value));
+        }
+
+        RecolourSlops();
+    }
+
+    private void RecolourSlops()
+    {
+        for (int i = 0; i < slopObjects.Count; i++)
+        {
+            if (slopObjects[i] == null) continue;
+            slopObjects[i].SetColor(GetColor(i));
+        }
+    }
+
     public Color GetColor(int index)
     {
-        if (index >= 0 && index < colors.Count)
-            return colors[index];
-        return Color.white;
+        if (colors.Count == 0) return Color.white;
+
+        int wrapped = ((index % colors.Count) + colors.Count) % colors.Count;
+        return colors[wrapped];
     }
 
-    public void SetColor(int red, int green, int blue)
+    public Color GetRandomColor() => GetColor(Random.Range(0, Mathf.Max(1, colors.Count)));
+
+    public int GetColorCount() => colors.Count;
+
+    // True if any pan currently on the counter is this colour.
+    public bool IsOnCounter(Color wanted)
     {
-        // Unity uses normalized float values (0.0 to 1.0) for Color
-        Color newColor = new Color(red / 255f, green / 255f, blue / 255f, 1f);
-        colors.Add(newColor);
+        for (int i = 0; i < slopObjects.Count; i++)
+        {
+            if (slopObjects[i] == null) continue;
+            if (slopObjects[i].GetColor() == wanted) return true;
+        }
+
+        return false;
     }
 
-    public int GetColorCount()
+    // A colour deliberately unlike anything on the counter, for the "sorry we're out" case.
+    // Best of 40 candidates rather than the first random one, so the answer is never
+    // a colour the player could mistake for a pan they actually have.
+    public Color GetOffPaletteColor()
     {
-        return colors.Count;
+        Color best = Color.white;
+        float bestGap = -1f;
+
+        for (int attempt = 0; attempt < 40; attempt++)
+        {
+            Color candidate = Color.HSVToRGB(Random.value, Random.Range(0.55f, 0.95f), Random.Range(0.45f, 0.90f));
+
+            float nearest = float.MaxValue;
+            for (int i = 0; i < colors.Count; i++)
+                nearest = Mathf.Min(nearest, SquaredDistance(candidate, colors[i]));
+
+            if (nearest <= bestGap) continue;
+
+            bestGap = nearest;
+            best = candidate;
+        }
+
+        return best;
     }
 
-    // --- SLOP OBJECT LIST METHODS ---
+    private static float SquaredDistance(Color a, Color b)
+    {
+        float dr = a.r - b.r;
+        float dg = a.g - b.g;
+        float db = a.b - b.b;
+        return (dr * dr) + (dg * dg) + (db * db);
+    }
+
+    // --- SLOP OBJECT LIST ---
+
     public Slop GetSlopObject(int index)
     {
-        if (index >= 0 && index < slopObjects.Count)
-            return slopObjects[index];
+        if (index >= 0 && index < slopObjects.Count) return slopObjects[index];
         return null;
     }
 
     public void AddSlopObject(Slop slop)
     {
-        if (!slopObjects.Contains(slop))
-            slopObjects.Add(slop);
+        if (slop == null || slopObjects.Contains(slop)) return;
+
+        slopObjects.Add(slop);
+        slop.SetColor(GetColor(slopObjects.Count - 1));
     }
 
-    public List<Slop> GetSlopObjectsList()
-    {
-        return slopObjects;
-    }
+    public List<Slop> GetSlopObjectsList() => slopObjects;
 
-    // --- SELECTED SLOP METHODS ---
-    public Slop GetSelectedSlop()
-    {
-        return selectedSlop;
-    }
+    // --- SELECTION ---
+
+    public Slop GetSelectedSlop() => selectedSlop;
 
     public void SetSelectedSlop(Slop slop)
     {
         selectedSlop = slop;
-        
-        // Unselect all other slops
-        foreach (Slop s in slopObjects)
+
+        for (int i = 0; i < slopObjects.Count; i++)
         {
-            if (s != slop)
-            {
-                s.SetIsSelected(false);
-            }
+            if (slopObjects[i] == null || slopObjects[i] == slop) continue;
+            slopObjects[i].SetIsSelected(false);
+        }
+    }
+
+    public void ClearSelection()
+    {
+        selectedSlop = null;
+
+        for (int i = 0; i < slopObjects.Count; i++)
+        {
+            if (slopObjects[i] == null) continue;
+            slopObjects[i].SetIsSelected(false);
         }
     }
 }

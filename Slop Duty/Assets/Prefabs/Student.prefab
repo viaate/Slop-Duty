@@ -343,7 +343,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 234cc2a1c5da40445a6897ac77aae6b0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  body: {fileID: 0}
+  body: {fileID: 5405673010367788163}
   clothing: {fileID: 0}
   hair: {fileID: 0}
   skinTones: []
@@ -362,6 +362,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0e5438ff7c5c24b0d9fc09b59c270458, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  studentSpriteRenderer: {fileID: 0}
+  fallbackPatience: 10
 --- !u!1 &8608495797134392853
 GameObject:
   m_ObjectHideFlags: 0

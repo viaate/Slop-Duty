@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 7409991800817388454}
   - component: {fileID: 4325479816950719115}
   - component: {fileID: 3053869204865932198}
+  - component: {fileID: 7623523695467027125}
   m_Layer: 0
   m_Name: SlopType
   m_TagString: Slop
@@ -130,3 +131,18 @@ BoxCollider2D:
   serializedVersion: 2
   m_Size: {x: 1, y: 1}
   m_EdgeRadius: 0
+--- !u!114 &7623523695467027125
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6333166544112165584}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 71d7f6abcf9834827b6e25e3d80a47d2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  outlineObject: {fileID: 0}
+  ladleObject: {fileID: 0}
+  slopSpriteRenderer: {fileID: 4325479816950719115}

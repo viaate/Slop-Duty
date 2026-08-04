@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class Slop : MonoBehaviour
 {
-    private Color color;
+    private Color color = Color.white;
     private bool isSelected = false;
 
     [Header("Visual References")]
@@ -12,64 +12,47 @@ public class Slop : MonoBehaviour
 
     private void Start()
     {
-        // Register this object with SlopLogic
-        if (SlopLogic.Instance != null)
+        if (SlopLogic.Instance == null)
         {
-            SlopLogic.Instance.AddSlopObject(this);
-            
-            // Assign a color if available
-            if (SlopLogic.Instance.GetColorCount() > 0)
-            {
-                SetColor(SlopLogic.Instance.GetColor(0));
-            }
+            Debug.LogError($"{name}: no SlopLogic in the scene. Add the SlopLogic component to SlopManager.", this);
+            return;
         }
+
+        // Registering also assigns this pan a colour, one index per pan,
+        // so two pans on the counter never share a colour.
+        SlopLogic.Instance.AddSlopObject(this);
     }
 
     private void OnMouseDown()
     {
-        // Triggered automatically by Unity when clicking this object's Collider
         SelectSlop();
     }
 
     public void SelectSlop()
     {
+        if (SlopLogic.Instance == null) return;
+
         SetIsSelected(true);
         SlopLogic.Instance.SetSelectedSlop(this);
-
-        // Visual feedback
-        if (outlineObject != null) outlineObject.SetActive(true);
-        if (ladleObject != null) ladleObject.SetActive(true);
     }
 
     // --- GETTERS & SETTERS ---
-    public Color GetColor()
-    {
-        return color;
-    }
+
+    public Color GetColor() => color;
 
     public void SetColor(Color newColor)
     {
         color = newColor;
-        if (slopSpriteRenderer != null)
-        {
-            slopSpriteRenderer.color = color;
-        }
+        if (slopSpriteRenderer != null) slopSpriteRenderer.color = color;
     }
 
-    public bool GetIsSelected()
-    {
-        return isSelected;
-    }
+    public bool GetIsSelected() => isSelected;
 
     public void SetIsSelected(bool selected)
     {
         isSelected = selected;
-        
-        // Hide outline and ladle if unselected
-        if (!isSelected)
-        {
-            if (outlineObject != null) outlineObject.SetActive(false);
-            if (ladleObject != null) ladleObject.SetActive(false);
-        }
+
+        if (outlineObject != null) outlineObject.SetActive(selected);
+        if (ladleObject != null) ladleObject.SetActive(selected);
     }
 }

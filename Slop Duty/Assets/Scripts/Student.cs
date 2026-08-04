@@ -7,34 +7,38 @@ using UnityEngine.Rendering;
 public class Student : MonoBehaviour
 {
     [Header("Walk speed (units per second)")]
-    [SerializeField] float walkInSpeed  = 6f;   // entering from off screen
-    [SerializeField] float shuffleSpeed = 14f;  // shifting forward when the line closes up
+    [SerializeField, Min(0.01f)] private float walkInSpeed = 6f;   // entering from off screen
+    [SerializeField, Min(0.01f)] private float shuffleSpeed = 14f;  // shifting forward when the line closes up
 
+    // Fires once, when they first reach the counter. IndividualStudent starts the
+    // patience clock off this rather than off Start.
     public event Action<Student> Arrived;
 
-    // -1 to 1. The queue scales this by its own jitter setting.
-    public float SlotOffset { get; set; }
+    // Both rolled once at spawn and scaled by the queue, so its sliders stay live.
+    public float SlotOffset { get; set; }   // -1 to 1
+    public float SpeedRoll { get; set; }    // 0 to 1
 
-    public float WalkInSpeed  { get => walkInSpeed;  set => walkInSpeed  = value; }
+    public float WalkInSpeed { get => walkInSpeed; set => walkInSpeed = value; }
     public float ShuffleSpeed { get => shuffleSpeed; set => shuffleSpeed = value; }
 
-    SortingGroup group;
-    float targetX;
-    bool walking;
-    bool hasArrived;
+    private SortingGroup group;
+    private float targetX;
+    private bool walking;
+    private bool hasArrived;
 
-    void Awake() => group = GetComponent<SortingGroup>();
+    private void Awake() => group = GetComponent<SortingGroup>();
 
     public void SetQueueIndex(int index) => group.sortingOrder = -index;
 
     public void WalkTo(float x)
     {
         if (Mathf.Abs(transform.position.x - x) < 0.0001f) return;
+
         targetX = x;
         walking = true;
     }
 
-    void Update()
+    private void Update()
     {
         if (!walking) return;
 
