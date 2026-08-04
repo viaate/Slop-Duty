@@ -24,7 +24,7 @@ public class PukePuddle : MonoBehaviour
     {
         if (((puddleVisual.color.a - alpha) > 0) && ((puddleVisual.color.a + alpha) <= 255))
         {
-            puddleVisual.color = new Color(86, 154, 2, (puddleVisual.color.a + alpha)) ;
+            puddleVisual.color = new Color(puddleVisual.color.r, puddleVisual.color.g, puddleVisual.color.b, (puddleVisual.color.a + alpha)) ;
         }
         else if ((puddleVisual.color.a - alpha) <= 0)
         {
@@ -32,7 +32,7 @@ public class PukePuddle : MonoBehaviour
         }
         else
         {
-            puddleVisual.color = new Color(86, 154, 2, 255) ;
+            puddleVisual.color = new Color(puddleVisual.color.r, puddleVisual.color.g, puddleVisual.color.b, 255) ;
         }
     }
 }
