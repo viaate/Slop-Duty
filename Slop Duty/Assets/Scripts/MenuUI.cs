@@ -36,17 +36,35 @@ public class MenuUI : MonoBehaviour
     [Header("Leaderboard")]
     [SerializeField] private float rowSpacing = 30f;
 
-    [Header("Team")]
-    [Tooltip("One portrait each, in the same order as the names below.")]
-    [SerializeField] private Sprite[] teamPortraits;
-
-    [SerializeField]
-    private string[] teamNames =
+    // One entry per person, each carrying its own frames. Replaces the old pair of
+    // parallel arrays, which assumed everybody had exactly one rest frame and one wave
+    // frame. They do not: some have two frames and some have three.
+    [System.Serializable]
+    public class TeamMember
     {
-        "OLIVIA GONSHER",
-        "SELENA YUE",
-        "JOHN SANDERS",
+        public string name;
+
+        [Tooltip("Frame 0 is the resting pose. Everything after it is the hover loop, " +
+                 "played in order. One frame means they simply stand still.")]
+        public Sprite[] frames;
+
+        [Tooltip("Frames per second for this person only. Leave at 0 to use the shared " +
+                 "Wave Fps below, so you only set this where somebody needs to differ.")]
+        public float fps;
+    }
+
+    [Header("Team")]
+    [SerializeField]
+    private TeamMember[] team =
+    {
+        new TeamMember { name = "OLIVIA GONSHER" },
+        new TeamMember { name = "SELENA YUE" },
+        new TeamMember { name = "JOHN SANDERS" },
     };
+
+    [Tooltip("Default frames per second while hovering, used by anyone whose own Fps is 0. " +
+             "2 means each pose holds half a second.")]
+    [SerializeField] private float waveFps = 2f;
 
     [Tooltip("192 is a clean 6x on a 32 pixel sprite. Stick to multiples of 32 (96, 128, " +
              "160, 192) or some source pixels render wider than others and it looks uneven.")]
@@ -64,6 +82,7 @@ public class MenuUI : MonoBehaviour
     [SerializeField] private string teamCaption = "MADE BY";
 
     private RectTransform titleRect;
+    private bool leaving;
 
     private GameObject menuRoot;
     private GameObject boardPanel;
@@ -112,17 +131,23 @@ public class MenuUI : MonoBehaviour
         // not. After they have finished one, this goes straight to Monday and the training
         // shift stays on the menu for anybody who wants it again.
         int tutorial = HighScores.TutorialDone ? 0 : 1;
-
-        PlayerPrefs.SetInt(GameManager.TutorialPrefKey, tutorial);
-        PlayerPrefs.Save();
-        SceneManager.LoadScene("SlopDuty");
+        Leave(tutorial);
     }
 
-    private void StartTraining()
+    private void StartTraining() => Leave(1);
+
+    private void Leave(int tutorialFlag)
     {
-        PlayerPrefs.SetInt(GameManager.TutorialPrefKey, 1);
+        if (leaving) return;
+
+        leaving = true;
+
+        PlayerPrefs.SetInt(GameManager.TutorialPrefKey, tutorialFlag);
         PlayerPrefs.Save();
-        SceneManager.LoadScene("SlopDuty");
+
+        // The music is not faded any more. It carries straight through the load, so
+        // fading it here would put a hole in a track that is meant to be continuous.
+        SceneFader.Go("SlopDuty");
     }
 
     private void ToggleBoard()
@@ -238,16 +263,16 @@ public class MenuUI : MonoBehaviour
 
         PixelText tagline = MakeText("Tagline", content, 26, TextAlignmentOptions.Top, accent,
                                      new Vector2(0.5f, 1f), new Vector2(0f, -330f), new Vector2(1400f, 36f));
-        tagline.Text = "MATCH THE COLOR. DO NOT LOOK AT THE FLOOR.";
+        tagline.Text = "MATCH THE COLOR AND MOVE FAST.";
 
         // Pulled up from -470/-570/-670 to clear the bigger portrait row and its caption.
-        MakeButton("Play", content, "START SHIFT", new Vector2(0f, -400f), new Vector2(460f, 84f), accent)
+        MakeButton("Play", content, "START SHIFT", new Vector2(0f, -400f), new Vector2(460f, 84f))
             .onClick.AddListener(StartShift);
 
-        MakeButton("Training", content, "TRAINING SHIFT", new Vector2(0f, -490f), new Vector2(460f, 84f), inkDim)
+        MakeButton("Training", content, "TRAINING SHIFT", new Vector2(0f, -490f), new Vector2(460f, 84f))
             .onClick.AddListener(StartTraining);
 
-        MakeButton("Board", content, "LEADERBOARD", new Vector2(0f, -580f), new Vector2(460f, 84f), inkDim)
+        MakeButton("Board", content, "LEADERBOARD", new Vector2(0f, -580f), new Vector2(460f, 84f))
             .onClick.AddListener(ToggleBoard);
 
         BuildTeam(content);
@@ -265,9 +290,7 @@ public class MenuUI : MonoBehaviour
     // plain text row, so nothing else needed moving except the best score sliding down.
     private void BuildTeam(RectTransform parent)
     {
-        int portraits = teamPortraits == null ? 0 : teamPortraits.Length;
-        int count = Mathf.Min(portraits, teamNames == null ? 0 : teamNames.Length);
-
+        int count = team == null ? 0 : team.Length;
         if (count == 0) return;
 
         if (!string.IsNullOrEmpty(teamCaption))
@@ -283,9 +306,14 @@ public class MenuUI : MonoBehaviour
 
         for (int i = 0; i < count; i++)
         {
+            TeamMember member = team[i];
+            if (member == null) continue;
+
             float x = (-span * 0.5f) + (i * portraitGap);
 
-            if (teamPortraits[i] != null)
+            bool hasArt = member.frames != null && member.frames.Length > 0 && member.frames[0] != null;
+
+            if (hasArt)
             {
                 GameObject go = new GameObject($"Portrait {i}", typeof(RectTransform));
                 go.transform.SetParent(parent, false);
@@ -294,9 +322,12 @@ public class MenuUI : MonoBehaviour
                        new Vector2(x, teamRowY), new Vector2(portraitPixels, portraitPixels));
 
                 Image img = go.AddComponent<Image>();
-                img.sprite = teamPortraits[i];
                 img.preserveAspect = true;
-                img.raycastTarget = false;
+
+                // Hover to animate. Setup shows frame 0 and decides whether this portrait
+                // takes pointer events at all, based on whether there is more than one frame.
+                float fps = member.fps > 0f ? member.fps : waveFps;
+                go.AddComponent<PortraitWave>().Setup(member.frames, fps);
             }
 
             // Sits below the row rather than at a fixed height, so resizing the portraits
@@ -304,7 +335,7 @@ public class MenuUI : MonoBehaviour
             PixelText label = MakeText($"Name {i}", parent, 22, TextAlignmentOptions.Top, ink,
                                        new Vector2(0.5f, 0f), new Vector2(x, teamRowY - 58f),
                                        new Vector2(portraitGap - 20f, 30f));
-            label.Text = teamNames[i];
+            label.Text = member.name;
         }
     }
 
@@ -364,7 +395,7 @@ public class MenuUI : MonoBehaviour
         boardStatus = MakeText("Status", panel, 26, TextAlignmentOptions.Top, inkDim,
                                new Vector2(0.5f, 1f), new Vector2(0f, -340f), new Vector2(1200f, 40f));
 
-        MakeButton("Back", panel, "BACK", new Vector2(0f, -880f), new Vector2(320f, 76f), accent)
+        MakeButton("Back", panel, "BACK", new Vector2(0f, -880f), new Vector2(320f, 76f))
             .onClick.AddListener(ToggleBoard);
 
         boardPanel.SetActive(false);
@@ -430,24 +461,30 @@ public class MenuUI : MonoBehaviour
         return t;
     }
 
+    // Every button sits dim and lights up to the accent on hover, rather than one of them
+    // being permanently highlighted. Transition is forced to None because Unity's own
+    // ColorBlock only tints the background Image, so the label would stay dim while the
+    // box behind it brightened. HoverTint moves both together.
     private Button MakeButton(string name, RectTransform parent, string label,
-                              Vector2 position, Vector2 size, Color tint)
+                              Vector2 position, Vector2 size)
     {
         GameObject go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
 
         Image img = go.AddComponent<Image>();
-        img.color = new Color(tint.r, tint.g, tint.b, 0.14f);
 
         Button b = go.AddComponent<Button>();
         b.targetGraphic = img;
+        b.transition = Selectable.Transition.None;
 
         Anchor(go.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), position, size);
 
         PixelText text = MakeText(name + " Text", go.GetComponent<RectTransform>(), 30,
-                                  TextAlignmentOptions.Center, tint,
+                                  TextAlignmentOptions.Center, inkDim,
                                   new Vector2(0.5f, 0.5f), Vector2.zero, size);
         text.Text = label;
+
+        go.AddComponent<HoverTint>().Setup(img, text.main, inkDim, accent);
 
         return b;
     }

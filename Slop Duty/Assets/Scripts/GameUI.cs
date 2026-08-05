@@ -94,7 +94,27 @@ public class GameUI : MonoBehaviour
         public GameObject Root => root.gameObject;
     }
 
-    private void Awake() => Build();
+    private bool built;
+
+    private void Awake() => EnsureBuilt();
+
+    // Called from Awake and again from Update. If anything ever stops Awake from finishing,
+    // the interface rebuilds itself on the next frame instead of throwing a null every
+    // frame forever with no way to recover.
+    private void EnsureBuilt()
+    {
+        if (built) return;
+
+        built = true;
+        Build();
+
+        if (dayLabel == null)
+        {
+            Debug.LogError($"{name}: GameUI finished building but its labels are null. " +
+                           "Something threw inside Build, so look for an earlier exception " +
+                           "in the console above this one.", this);
+        }
+    }
 
     private void Start()
     {
@@ -123,6 +143,8 @@ public class GameUI : MonoBehaviour
     // screen that cannot animate itself in is worse than none.
     private void Update()
     {
+        EnsureBuilt();
+
         RefreshHud();
         TickCard();
         PollBoard();
@@ -132,14 +154,16 @@ public class GameUI : MonoBehaviour
 
     private void RefreshHud()
     {
-        if (game != null)
+        // Guarded individually rather than assuming Build succeeded, because a single null
+        // here used to throw every frame and bury whatever the real first error was.
+        if (game != null && dayLabel != null)
         {
             dayLabel.Text = DayConfig.NameFor(game.Day);
             weekLabel.Text = game.Day <= 0 ? "TRAINING" : $"WEEK {DayConfig.WeekFor(game.Day)}";
             quotaLabel.Text = $"{game.ResolvedToday}/{game.QuotaToday}";
         }
 
-        if (timer != null)
+        if (timer != null && clockLabel != null)
         {
             float left = timer.TimeRemaining;
             clockLabel.Text = Mathf.CeilToInt(left).ToString();
@@ -161,6 +185,8 @@ public class GameUI : MonoBehaviour
 
     private void ShowDayCard(int day)
     {
+        if (cardDay == null) return;
+
         cardDay.Text = DayConfig.NameFor(day);
         cardWeek.Text = day <= 0 ? "NOBODY COMES IN ON A SUNDAY" : $"WEEK {DayConfig.WeekFor(day)}";
         cardTimer = 0f;
@@ -168,6 +194,8 @@ public class GameUI : MonoBehaviour
 
     private void TickCard()
     {
+        if (cardGroup == null) return;
+
         if (cardTimer < 0f)
         {
             cardGroup.alpha = 0f;
@@ -319,13 +347,13 @@ public class GameUI : MonoBehaviour
     private void Restart()
     {
         Time.timeScale = 1f;
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        SceneFader.Go(SceneManager.GetActiveScene().name);
     }
 
     private void QuitToMenu()
     {
         Time.timeScale = 1f;
-        SceneManager.LoadScene("MainMenu");
+        SceneFader.Go("MainMenu");
     }
 
     // --- construction ---
