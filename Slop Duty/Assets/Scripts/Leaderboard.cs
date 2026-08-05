@@ -32,6 +32,14 @@ public class Leaderboard : MonoBehaviour
              "confirmed working, since a silent failure here looks identical to an empty board.")]
     [SerializeField] private bool logRequests = true;
 
+    [Tooltip("dreamlo boards are HTTP only unless SSL is enabled on your account. Turning " +
+             "this off makes it work in the editor, but a WebGL build on itch.io is served " +
+             "over HTTPS and browsers block plain HTTP requests from an HTTPS page, so it " +
+             "will silently fail once published. Test tool only.")]
+    [SerializeField] private bool useHttps = true;
+
+    private string Scheme => useHttps ? "https" : "http";
+
     public bool Configured => !string.IsNullOrEmpty(publicCode) && !string.IsNullOrEmpty(privateCode);
 
     public bool Busy { get; private set; }
@@ -58,6 +66,21 @@ public class Leaderboard : MonoBehaviour
     {
         if (!Configured) return;
 
+        // Screened before the request, not after, because dreamlo has no moderation and
+        // no delete-from-the-game path. Once a name is on that board it is there until
+        // somebody removes it by hand through the private URL.
+        string offending = ProfanityFilter.Matched(playerName);
+        if (offending != null)
+        {
+            LastError = "PICK A DIFFERENT NAME";
+            Busy = false;
+
+            // The specific word stays out of the player-facing message on purpose,
+            // since naming it just tells them what to spell around.
+            if (logRequests) Debug.Log($"[Leaderboard] name rejected by filter: '{offending}'");
+            return;
+        }
+
         StartCoroutine(SubmitRoutine(playerName, HighScores.ScoreOf(stats), stats.daysCleared));
     }
 
@@ -77,7 +100,7 @@ public class Leaderboard : MonoBehaviour
 
         // score goes in the score slot, days cleared rides along in the free text field
         // so the board can show "reached Thursday" next to the number.
-        string url = $"https://dreamlo.com/lb/{privateCode}/add/{safeName}/{score}/0/{days}";
+        string url = $"{Scheme}://dreamlo.com/lb/{privateCode}/add/{safeName}/{score}/0/{days}";
 
         if (logRequests)
             Debug.Log($"[Leaderboard] submitting '{safeName}' score {score}, days {days}");
@@ -88,16 +111,26 @@ public class Leaderboard : MonoBehaviour
 
             if (req.result != UnityWebRequest.Result.Success)
             {
-                LastError = $"{req.responseCode} {req.error}";
+                LastError = $"SCOREBOARD OFFLINE\n{req.responseCode} {req.error}";
                 Debug.LogWarning($"[Leaderboard] submit failed: {LastError}", this);
                 Busy = false;
                 yield break;
             }
 
-            // dreamlo answers a successful add with an empty body, so an unexpected body
-            // usually means the private code is wrong or the URL was malformed.
+            // dreamlo answers a successful add with an empty body and reports real problems
+            // in the body with a 200, so the status code alone is not enough to trust.
+            string reply = req.downloadHandler.text;
+
             if (logRequests)
-                Debug.Log($"[Leaderboard] submit ok, response body: '{req.downloadHandler.text}'");
+                Debug.Log($"[Leaderboard] submit response body: '{reply}'");
+
+            if (IsServerError(reply))
+            {
+                LastError = Describe(reply);
+                Debug.LogWarning($"[Leaderboard] submit rejected: {reply}", this);
+                Busy = false;
+                yield break;
+            }
         }
 
         yield return FetchRoutine();
@@ -111,7 +144,7 @@ public class Leaderboard : MonoBehaviour
         // Pipe format rather than JSON on purpose. dreamlo's JSON returns a single object
         // instead of an array when there is exactly one entry, which JsonUtility cannot
         // parse, so a brand new board would break the moment it had its first score.
-        string url = $"https://dreamlo.com/lb/{publicCode}/pipe/0/{topCount}";
+        string url = $"{Scheme}://dreamlo.com/lb/{publicCode}/pipe/0/{topCount}";
 
         using (UnityWebRequest req = UnityWebRequest.Get(url))
         {
@@ -119,7 +152,7 @@ public class Leaderboard : MonoBehaviour
 
             if (req.result != UnityWebRequest.Result.Success)
             {
-                LastError = $"{req.responseCode} {req.error}";
+                LastError = $"SCOREBOARD OFFLINE\n{req.responseCode} {req.error}";
                 Debug.LogWarning($"[Leaderboard] fetch failed: {LastError}", this);
                 Busy = false;
                 yield break;
@@ -128,17 +161,36 @@ public class Leaderboard : MonoBehaviour
             string body = req.downloadHandler.text;
 
             if (logRequests)
-                Debug.Log($"[Leaderboard] fetch ok, {body.Length} chars:\n{body}");
+                Debug.Log($"[Leaderboard] fetch response, {body.Length} chars:\n{body}");
+
+            // dreamlo returns its errors as a 200 with an ERROR body, so this has to be
+            // checked before parsing or a rejection reads as an empty scoreboard.
+            if (IsServerError(body))
+            {
+                LastError = Describe(body);
+                Debug.LogWarning($"[Leaderboard] fetch rejected: {body}", this);
+                Busy = false;
+                yield break;
+            }
 
             Top = Parse(body);
-
-            // An empty body here right after a submit means the write did not land, which
-            // is almost always a wrong private code rather than a network problem.
-            if (Top.Count == 0 && logRequests)
-                Debug.LogWarning("[Leaderboard] board is empty. If you just submitted, check the private code.", this);
         }
 
         Busy = false;
+    }
+
+    private static bool IsServerError(string body)
+    {
+        return !string.IsNullOrEmpty(body) && body.TrimStart().StartsWith("ERROR", System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Turns dreamlo's own error text into something that fits on a game over screen.
+    private static string Describe(string body)
+    {
+        if (body.IndexOf("SSL", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return "SSL NOT ENABLED ON THIS BOARD";
+
+        return $"SCOREBOARD ERROR\n{body.Trim()}";
     }
 
     // Each line is name|score|seconds|text|date

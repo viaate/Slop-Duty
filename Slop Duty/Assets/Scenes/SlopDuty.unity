@@ -122,6 +122,55 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &60593414
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 60593416}
+  - component: {fileID: 60593415}
+  m_Layer: 0
+  m_Name: ScreenEffects
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &60593415
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 60593414}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc7c4504e95675249b5551f77683a46c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  baseIntensity: 0.25
+  filthIntensity: 0.2
+  smoothness: 0.45
+  vignetteColor: {r: 0.02, g: 0.02, b: 0.01, a: 1}
+  responseSpeed: 1.2
+--- !u!4 &60593416
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 60593414}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &299852260
 GameObject:
   m_ObjectHideFlags: 0
@@ -168,10 +217,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   startingColors: 3
   slopPrefab: {fileID: 7623523695467027125, guid: 04121dd15f9c3d449815b3ce8e4db842, type: 3}
-  maxPans: 10
+  maxPans: 8
   autoLayout: 1
-  counterLeftX: -6
-  counterRightX: 6
+  counterLeftX: -7
+  counterRightX: 7
+  minColorGap: 0.17
+  candidateTries: 48
+  repairPasses: 8
+  decoyGapMultiplier: 1.35
 --- !u!1 &311971801
 GameObject:
   m_ObjectHideFlags: 0
@@ -309,6 +362,8 @@ MonoBehaviour:
   publicCode: 6a7355338f40bb1218a38efa
   privateCode: Fxmg60hoVUm1jk_2Cl6zfQs-JVvLrJs0CmQeUXjhJ3VQ
   topCount: 10
+  logRequests: 1
+  useHttps: 1
 --- !u!1 &500625482
 GameObject:
   m_ObjectHideFlags: 0
@@ -346,7 +401,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 800.21, y: -489.4}
+  m_AnchoredPosition: {x: 0.000061035, y: -489.4}
   m_SizeDelta: {x: 319.58, y: 101.6479}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &500625484
@@ -445,15 +500,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   autoStyle: 1
   pixelFont: {fileID: 11400000, guid: 147b80e8ccfcf4e43959c71cdba633df, type: 2}
-  label: SORRY, WE'RE OUT
+  label: WE'RE OUT
   maxFontSize: 30
-  borderWidth: 5
-  borderColor: {r: 0.788, g: 0.843, b: 0.29, a: 1}
-  pressedBorder: {r: 1, g: 0.98, b: 0.62, a: 1}
-  fillColor: {r: 0.788, g: 0.843, b: 0.29, a: 1}
-  textColor: {r: 0.055, g: 0.059, b: 0.043, a: 1}
-  shadowColor: {r: 0.043, g: 0.047, b: 0.031, a: 0.85}
-  shadowOffset: {x: 3, y: -3}
+  plateColor: {r: 0.8, g: 0.859, b: 0.714, a: 1}
+  platePressed: {r: 1, g: 1, b: 0.92, a: 1}
+  plateEdge: {r: 0.275, g: 0.376, b: 0.082, a: 1}
+  plateEdgeWidth: 4
+  plateShadow: {r: 0, g: 0, b: 0, a: 0.85}
+  plateShadowOffset: {x: 10, y: -10}
+  plateInk: {r: 0.043, g: 0.047, b: 0.031, a: 1}
   flashSeconds: 0.15
 --- !u!1 &513445167
 GameObject:
@@ -983,8 +1038,8 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 1
-  m_Sprite: {fileID: 7482667652216324306, guid: 311925a002f4447b3a28927169b83ea6, type: 3}
-  m_Color: {r: 0.3372549, g: 0.34117648, b: 0.21176471, a: 1}
+  m_Sprite: {fileID: 21300000, guid: 0a48d7e8e2cf8104e98a2e17fd289e3e, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -1003,8 +1058,8 @@ Transform:
   m_GameObject: {fileID: 1135509283}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.0236, y: -2.6687, z: 0}
-  m_LocalScale: {x: 17.833809, y: 4.6614494, z: 1}
+  m_LocalPosition: {x: -0.0236, y: -2.84, z: 0}
+  m_LocalScale: {x: 16, y: 16, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -1160,8 +1215,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   puddlePrefab: {fileID: 7760984580018882850, guid: 450ebd646dae59c42a502582cc835d7e, type: 3}
   puddleOffset: {x: 7.7, y: 0}
+  pukePerFailure: 0.34
   mopLockout: 0.4
-  maxServeDelay: 1
+  arrivalSlowdown: 0.8
+  patienceSqueeze: 0.5
 --- !u!4 &1392131573
 Transform:
   m_ObjectHideFlags: 0
@@ -1171,7 +1228,7 @@ Transform:
   m_GameObject: {fileID: 1392131571}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: -0.13, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1208,8 +1265,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   studentPrefab: {fileID: 4229568853372684135, guid: 4e9f33ffa4593fe45a7a31da7798604b, type: 3}
   maxStudents: 4
-  frontX: 6
-  backX: -6
+  frontX: 5.8
+  backX: -5.8
   spawnX: -13
   lineJitter: 0.37
   walkInSpeedMin: 5
@@ -1225,7 +1282,7 @@ Transform:
   m_GameObject: {fileID: 1392493731}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.22, z: 0}
+  m_LocalPosition: {x: 0, y: 0.67, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1372,7 +1429,7 @@ MonoBehaviour:
   cardHold: 1.3
   cardFall: 0.45
   lowTimeSeconds: 10
-  statLineSpacing: 34
+  statRowGap: 60
 --- !u!4 &1995097748
 Transform:
   m_ObjectHideFlags: 0
@@ -1404,3 +1461,4 @@ SceneRoots:
   - {fileID: 1392131573}
   - {fileID: 722934940}
   - {fileID: 1995097748}
+  - {fileID: 60593416}

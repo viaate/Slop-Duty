@@ -52,7 +52,6 @@ public class GameUI : MonoBehaviour
     private PixelText weekLabel;
     private PixelText clockLabel;
     private PixelText quotaLabel;
-    private PixelText warningLabel;
 
     private GameObject hudRoot;
     private CanvasGroup cardGroup;
@@ -154,8 +153,8 @@ public class GameUI : MonoBehaviour
             clockLabel.root.localScale = Vector3.one * step;
         }
 
-        bool blocked = PukeManager.Instance != null && PukeManager.Instance.AnyBlockingPuddle;
-        warningLabel.Root.SetActive(blocked);
+        // No mess warning. The puddle growing and the vignette closing in already say it,
+        // and a line of text shouting over the top was redundant.
     }
 
     // --- day card ---
@@ -290,11 +289,13 @@ public class GameUI : MonoBehaviour
 
         awaitingBoard = false;
 
-        // The real error, not a friendly one. This is the only place you can see it in a
-        // WebGL build, where there is no console to check.
+        // Shown as-is. Leaderboard already phrases these for a player to read, and
+        // prefixing "SCOREBOARD OFFLINE" onto a rejected name would be nonsense. This is
+        // also the only place the message is visible in a WebGL build, where there is no
+        // console to check.
         if (!string.IsNullOrEmpty(board.LastError))
         {
-            overBoard.Text = $"SCOREBOARD OFFLINE\n{board.LastError}";
+            overBoard.Text = board.LastError;
             return;
         }
 
@@ -373,10 +374,6 @@ public class GameUI : MonoBehaviour
         quotaLabel = MakeText("Quota", root, 22, TextAlignmentOptions.TopRight, inkDim,
                           new Vector2(1f, 1f), new Vector2(-40f, -100f), new Vector2(400f, 30f));
 
-        warningLabel = MakeText("Warning", root, 40, TextAlignmentOptions.Center, danger,
-                            new Vector2(0.5f, 0f), new Vector2(0f, 120f), new Vector2(900f, 54f));
-        warningLabel.Text = "CLEAN IT UP";
-        warningLabel.Root.SetActive(false);
     }
 
     private void BuildDayCard(RectTransform root)

@@ -36,6 +36,28 @@ public class MenuUI : MonoBehaviour
     [Header("Leaderboard")]
     [SerializeField] private float rowSpacing = 30f;
 
+    [Header("Team")]
+    [Tooltip("One portrait each, in the same order as the names below.")]
+    [SerializeField] private Sprite[] teamPortraits;
+
+    [SerializeField]
+    private string[] teamNames =
+    {
+        "OLIVIA GONSHER",
+        "SELENA YUE",
+        "JOHN SANDERS",
+    };
+
+    [Tooltip("192 is a clean 6x on a 32 pixel sprite. Stick to multiples of 32 (96, 128, " +
+             "160, 192) or some source pixels render wider than others and it looks uneven.")]
+    [SerializeField] private float portraitPixels = 192f;
+
+    [SerializeField] private float portraitGap = 340f;
+
+    [Tooltip("Height of the portrait row above the bottom edge. Names and the best score " +
+             "are placed relative to this, so moving it moves the whole block.")]
+    [SerializeField] private float teamRowY = 150f;
+
     private RectTransform titleRect;
 
     private GameObject menuRoot;
@@ -151,7 +173,7 @@ public class MenuUI : MonoBehaviour
 
         if (!string.IsNullOrEmpty(board.LastError))
         {
-            boardStatus.Text = $"SCOREBOARD OFFLINE\n{board.LastError}";
+            boardStatus.Text = board.LastError;
             return;
         }
 
@@ -213,26 +235,61 @@ public class MenuUI : MonoBehaviour
                                      new Vector2(0.5f, 1f), new Vector2(0f, -330f), new Vector2(1400f, 36f));
         tagline.Text = "MATCH THE COLOR. DO NOT LOOK AT THE FLOOR.";
 
-        MakeButton("Play", content, "START SHIFT", new Vector2(0f, -470f), new Vector2(460f, 84f), accent)
+        // Pulled up from -470/-570/-670 to clear the bigger portrait row underneath.
+        MakeButton("Play", content, "START SHIFT", new Vector2(0f, -420f), new Vector2(460f, 84f), accent)
             .onClick.AddListener(StartShift);
 
-        MakeButton("Training", content, "TRAINING SHIFT", new Vector2(0f, -570f), new Vector2(460f, 84f), inkDim)
+        MakeButton("Training", content, "TRAINING SHIFT", new Vector2(0f, -510f), new Vector2(460f, 84f), inkDim)
             .onClick.AddListener(StartTraining);
 
-        MakeButton("Board", content, "LEADERBOARD", new Vector2(0f, -670f), new Vector2(460f, 84f), inkDim)
+        MakeButton("Board", content, "LEADERBOARD", new Vector2(0f, -600f), new Vector2(460f, 84f), inkDim)
             .onClick.AddListener(ToggleBoard);
 
+        BuildTeam(content);
+
         PixelText best = MakeText("Best", content, 24, TextAlignmentOptions.Bottom, inkDim,
-                                  new Vector2(0.5f, 0f), new Vector2(0f, 96f), new Vector2(900f, 34f));
+                                  new Vector2(0.5f, 0f), new Vector2(0f, teamRowY - 108f), new Vector2(900f, 34f));
         best.Text = HighScores.BestScore > 0
             ? $"BEST {HighScores.BestScore}   ({HighScores.BestDays} DAYS)"
             : "NO SHIFTS SURVIVED YET";
 
-        PixelText credits = MakeText("Credits", content, 20, TextAlignmentOptions.Bottom, inkDim,
-                                     new Vector2(0.5f, 0f), new Vector2(0f, 46f), new Vector2(900f, 30f));
-        credits.Text = "OLIVIA   SELENA   JOHN";
-
         BuildBoardPanel(root);
+    }
+
+    // The credits line, but as the three of you standing in the canteen. Replaces the
+    // plain text row, so nothing else needed moving except the best score sliding down.
+    private void BuildTeam(RectTransform parent)
+    {
+        int portraits = teamPortraits == null ? 0 : teamPortraits.Length;
+        int count = Mathf.Min(portraits, teamNames == null ? 0 : teamNames.Length);
+
+        if (count == 0) return;
+
+        float span = portraitSpacing * (count - 1);
+
+        for (int i = 0; i < count; i++)
+        {
+            float x = (-span * 0.5f) + (i * portraitSpacing);
+
+            if (teamPortraits[i] != null)
+            {
+                GameObject go = new GameObject($"Portrait {i}", typeof(RectTransform));
+                go.transform.SetParent(parent, false);
+
+                Anchor(go.GetComponent<RectTransform>(), new Vector2(0.5f, 0f),
+                       new Vector2(x, 175f), new Vector2(portraitSize, portraitSize));
+
+                Image img = go.AddComponent<Image>();
+                img.sprite = teamPortraits[i];
+                img.preserveAspect = true;
+                img.raycastTarget = false;
+            }
+
+            PixelText label = MakeText($"Name {i}", parent, 20, TextAlignmentOptions.Top, ink,
+                                       new Vector2(0.5f, 0f), new Vector2(x, 118f),
+                                       new Vector2(portraitSpacing - 20f, 30f));
+            label.Text = teamNames[i];
+        }
     }
 
     private void BuildBoardPanel(RectTransform root)

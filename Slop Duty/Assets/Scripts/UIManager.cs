@@ -67,9 +67,6 @@ public class UIManager : MonoBehaviour
         float seconds = levelTimer != null ? levelTimer.TimeRemaining : 0f;
         string line = $"{day}{progress}   TIME {Mathf.CeilToInt(seconds)}";
 
-        if (PukeManager.Instance != null && PukeManager.Instance.AnyBlockingPuddle)
-            line += "   CLEAN THE PUKE";
-
         timeRemaining.text = line;
     }
 }

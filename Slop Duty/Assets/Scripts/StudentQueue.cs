@@ -55,7 +55,12 @@ public class StudentQueue : MonoBehaviour
         spawnTimer -= Time.deltaTime;
         if (spawnTimer > 0f) return;
 
-        spawnTimer = spawnInterval;
+        // Asked for fresh each time rather than cached from Configure, because the floor
+        // stretches this out as the mess builds and that has to take effect immediately.
+        spawnTimer = GameManager.Instance != null
+            ? GameManager.Instance.CurrentArrivalInterval
+            : spawnInterval;
+
         TrySpawn();
     }
 

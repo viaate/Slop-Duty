@@ -30,10 +30,24 @@ public struct DayConfig
         return new DayConfig
         {
             arrivalInterval = Mathf.Max(1.2f, 3.20f - (0.20f * d)),
-            patience = Mathf.Max(3.5f, 9.00f - (0.50f * d)),
+
+            // Flat and short, with Monday doubled as a gentle landing off Sunday.
+            //
+            // A kid can be served from the moment they spawn, so the real window is the
+            // walk in plus this, and in testing you could clear everyone before they even
+            // stopped walking. Long patience was doing nothing.
+            //
+            // Patience is no longer a difficulty lever either. The floor does that job now,
+            // squeezing this number down as the mess grows.
+            patience = day == 1 ? 3.0f : 1.5f,
+
             slopColors = Mathf.Min(10, 3 + Mathf.FloorToInt(d * 0.7f)),
             reward = Mathf.Max(0.8f, 3.40f - (0.30f * d)),
-            penalty = Mathf.Max(6.0f, 8.00f - (0.15f * d)),
+
+            // Lowered from 8.0. Punishment weight moved off the clock and onto the floor,
+            // so mistakes cost you tempo rather than instantly costing you the run.
+            penalty = Mathf.Max(4.0f, 5.00f - (0.10f * d)),
+
             quota = 8,
         };
     }
@@ -61,6 +75,9 @@ public struct DayConfig
     public static readonly DayConfig Sunday = new DayConfig
     {
         arrivalInterval = 4.5f,
+
+        // Left long on purpose. Sunday is where people work out what the bubble means,
+        // and nobody should be timing out while reading the screen.
         patience = 20f,
         slopColors = 2,
         reward = 0f,

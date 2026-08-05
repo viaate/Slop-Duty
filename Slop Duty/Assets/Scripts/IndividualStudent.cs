@@ -4,10 +4,25 @@ using UnityEngine;
 public class IndividualStudent : MonoBehaviour
 {
     [Header("References")]
+    [Tooltip("The renderer that shows what colour slop this kid wants. Once the character " +
+             "has proper art this should be a bubble above their head, not their body.")]
     [SerializeField] private SpriteRenderer studentSpriteRenderer;
+
+    [Tooltip("Optional. Assign slop.PNG and the request bubble shows the actual slop art " +
+             "repainted to the wanted color, so it matches the pans exactly. Leave empty " +
+             "and the renderer is simply tinted instead.")]
+    [SerializeField] private Sprite requestSprite;
 
     [Header("Fallback, used only when there is no GameManager")]
     [SerializeField] private float fallbackPatience = 10f;
+
+    [Header("Mop grace")]
+    [Tooltip("A kid about to walk out gets a reprieve if the player was mopping this " +
+             "recently. Never shown in the UI, on purpose.")]
+    [SerializeField] private float mopGraceWindow = 1f;
+
+    [Tooltip("Seconds granted. Once per kid, so it cannot be farmed.")]
+    [SerializeField] private float mopGraceBonus = 1f;
 
     [Header("Exit")]
     [Tooltip("How fast a resolved kid bolts off screen. High on purpose: their slot has " +
@@ -20,6 +35,7 @@ public class IndividualStudent : MonoBehaviour
 
     private float patienceTotal;
     private float patienceLeft;
+    private bool graceUsed;
 
     private Student student;
     private StudentQueue queue;
@@ -48,7 +64,29 @@ public class IndividualStudent : MonoBehaviour
     private void Start()
     {
         assignedColor = GenerateColor();
-        if (studentSpriteRenderer != null) studentSpriteRenderer.color = assignedColor;
+        ShowRequest();
+    }
+
+    private void ShowRequest()
+    {
+        if (studentSpriteRenderer == null) return;
+
+        // Repainting beats tinting here for the same reason it does on the pans: tinting
+        // multiplies, so a red source blob can never become blue. Repainting also means
+        // the bubble is literally the same artwork as the pan the player has to match.
+        if (requestSprite != null)
+        {
+            Sprite painted = SpriteRecolor.For(requestSprite, assignedColor);
+
+            if (painted != null)
+            {
+                studentSpriteRenderer.sprite = painted;
+                studentSpriteRenderer.color = Color.white;
+                return;
+            }
+        }
+
+        studentSpriteRenderer.color = assignedColor;
     }
 
     // Patience starts when they reach the counter, not when they spawn. Otherwise the
@@ -56,8 +94,10 @@ public class IndividualStudent : MonoBehaviour
     // than kids heading for the near slot purely because of walk distance.
     private void OnArrived(Student s)
     {
+        // CurrentPatience, not Today.patience, so the mess on the floor shortens the
+        // window the moment it appears rather than only from the next day.
         patienceTotal = GameManager.Instance != null
-            ? GameManager.Instance.Today.patience
+            ? GameManager.Instance.CurrentPatience
             : fallbackPatience;
 
         patienceLeft = patienceTotal;
@@ -75,7 +115,7 @@ public class IndividualStudent : MonoBehaviour
         {
             patienceLeft -= Time.deltaTime;
 
-            if (patienceLeft <= 0f)
+            if (patienceLeft <= 0f && !TryMopGrace())
             {
                 patienceLeft = 0f;
                 Resolve(false, true);
@@ -87,6 +127,29 @@ public class IndividualStudent : MonoBehaviour
         if (!IsUnderCursor()) return;
 
         TryServeStudent();
+    }
+
+    // Hidden mercy. A kid on the brink gets one more second if the player was mopping in
+    // the last moment. Mopping is forced work that stops you serving, so losing someone
+    // TO the mopping reads as the game cheating rather than as your own mistake.
+    //
+    // Deliberately never surfaced anywhere in the UI. A mercy the player can see is a
+    // mercy they start planning around, and then it stops being mercy and becomes a
+    // mechanic to exploit. Once per kid and capped at a second, so it cannot be farmed,
+    // and it only ever fires on someone who was about to be lost regardless.
+    private bool TryMopGrace()
+    {
+        if (graceUsed) return false;
+        if (PukeManager.Instance == null) return false;
+        if (!PukeManager.Instance.MoppedWithin(mopGraceWindow)) return false;
+
+        graceUsed = true;
+
+        // Both, so the patience bar reads 0 to 1 rather than overflowing past full.
+        patienceLeft += mopGraceBonus;
+        patienceTotal += mopGraceBonus;
+
+        return true;
     }
 
     // OverlapPointAll, not OverlapPoint. OverlapPoint returns one arbitrary collider,
@@ -170,6 +233,14 @@ public class IndividualStudent : MonoBehaviour
         resolved = true;
         waiting = false;
 
+        // They run off screen wearing the result. Free characterisation, since the exit
+        // animation already exists and this is one sprite swap.
+        if (!correct)
+        {
+            StudentLook look = GetComponentInChildren<StudentLook>();
+            if (look != null) look.ShowPukeFace();
+        }
+
         GameManager game = GameManager.Instance;
         float where = transform.position.x;
 
@@ -216,7 +287,7 @@ public class IndividualStudent : MonoBehaviour
     public void SetAssignedColor(Color color)
     {
         assignedColor = color;
-        if (studentSpriteRenderer != null) studentSpriteRenderer.color = color;
+        ShowRequest();
     }
 
     public bool GetIsStaying() => waiting;

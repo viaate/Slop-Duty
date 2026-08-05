@@ -48,6 +48,15 @@ public class GameManager : MonoBehaviour
     public int ResolvedToday => resolvedToday;
     public int QuotaToday => Today.quota;
 
+    // The day's numbers after the floor has had its say. A filthy floor slows arrivals,
+    // which starves your income, and shortens patience, which makes you fail more. Read
+    // these rather than Today.* anywhere that actually drives gameplay.
+    public float CurrentArrivalInterval =>
+        Today.arrivalInterval * (puke != null ? puke.ArrivalMultiplier : 1f);
+
+    public float CurrentPatience =>
+        Mathf.Max(0.4f, Today.patience * (puke != null ? puke.PatienceMultiplier : 1f));
+
     private void Awake()
     {
         if (Instance != null && Instance != this)

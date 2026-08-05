@@ -1,37 +1,59 @@
 using UnityEngine;
 
+// One puddle, in one place, that gets thicker with every failure.
+//
+// The floor no longer hard-stops the counter. A binary block was unreachable in practice:
+// filling it took five failures, and five failures cost more clock than you had, so the
+// block fired at the exact moment you were dead anyway.
+//
+// Instead the mess strangles you continuously. The dirtier the floor, the slower kids
+// arrive (so you earn less clock) and the less patience they have when they get there
+// (so you fail more). It is a spiral you can still climb out of by mopping, rather than
+// a wall you hit once and lose to.
 public class PukeManager : MonoBehaviour
 {
     public static PukeManager Instance;
 
     [SerializeField] private PukePuddle puddlePrefab;
 
-    [Tooltip("Where the puddle sits, as an offset from this object. There is only ever " +
-             "one puddle: every mess piles into the same spot and it just gets thicker.")]
+    [Tooltip("Where the puddle sits, as an offset from this object.")]
     [SerializeField] private Vector2 puddleOffset = Vector2.zero;
 
-    [Header("How much a dirty floor costs you")]
+    [Header("How fast it builds")]
+    [Tooltip("Opacity added per failure. At 0.34 it takes three mistakes to fill the floor.")]
+    [SerializeField, Range(0.05f, 1f)] private float pukePerFailure = 0.34f;
+
+    [Header("What a dirty floor costs you")]
     [Tooltip("Seconds you cannot serve for after each mop click. This is what stops " +
              "mopping being free.")]
     [SerializeField] private float mopLockout = 0.4f;
 
-    [Tooltip("Seconds you are stuck after serving when the floor is at full opacity. " +
-             "Scales with how filthy it is, so a messy floor drags on everything.")]
-    [SerializeField] private float maxServeDelay = 1.0f;
+    [Tooltip("At full filth, kids take this much longer to walk in. 0.8 means a 3 second " +
+             "arrival becomes 5.4 seconds, so your income dries up.")]
+    [SerializeField, Range(0f, 2f)] private float arrivalSlowdown = 0.8f;
+
+    [Tooltip("At full filth, patience shrinks by this fraction. 0.5 halves it.")]
+    [SerializeField, Range(0f, 0.9f)] private float patienceSqueeze = 0.5f;
 
     private PukePuddle puddle;
     private float lockoutUntil;
+    private float lastMopTime = -999f;
 
-    // 0 when the floor is clean, 1 when the puddle is at full opacity.
+    // Used by IndividualStudent for the mop grace window. See TryMopGrace over there.
+    public bool MoppedWithin(float seconds) => Time.time - lastMopTime <= seconds;
+
+    // 0 on a clean floor, 1 when the puddle is at full opacity.
     public float Filth => puddle == null ? 0f : puddle.Opacity;
 
-    public bool AnyBlockingPuddle => puddle != null && puddle.IsBlocking;
-
-    // The player cannot serve while mopping, while still slowed by the mess, or at all
-    // once the puddle hits full opacity.
-    public bool ServingBlocked => Time.time < lockoutUntil || AnyBlockingPuddle;
+    // Only ever the mop lockout now. The floor being filthy makes the job harder, it does
+    // not take the job away.
+    public bool ServingBlocked => Time.time < lockoutUntil;
 
     public Vector3 PuddlePosition => transform.position + new Vector3(puddleOffset.x, puddleOffset.y, 0f);
+
+    // Multipliers the rest of the game reads. Both are 1 on a clean floor.
+    public float ArrivalMultiplier => 1f + (Filth * arrivalSlowdown);
+    public float PatienceMultiplier => 1f - (Filth * patienceSqueeze);
 
     private void Awake()
     {
@@ -49,7 +71,7 @@ public class PukeManager : MonoBehaviour
         if (Instance == this) Instance = null;
     }
 
-    // Called whenever a student is failed. Everything lands in the one spot.
+    // Called whenever a student is failed. Everything piles into the one spot.
     public void AddMess()
     {
         if (puddlePrefab == null)
@@ -61,17 +83,13 @@ public class PukeManager : MonoBehaviour
         if (puddle == null)
             puddle = Instantiate(puddlePrefab, PuddlePosition, Quaternion.identity, transform);
 
-        puddle.AddPuke();
+        puddle.AddPuke(pukePerFailure);
     }
 
-    // Called after every resolution. The dirtier the floor, the longer the player is
-    // stuck before the next kid can be served.
+    // Kept so GameManager does not need changing. The serve delay used to live here, but
+    // slowing arrivals and squeezing patience are a better punishment than a dead pause.
     public void NoteServe()
     {
-        float delay = Filth * maxServeDelay;
-        if (delay <= 0f) return;
-
-        lockoutUntil = Mathf.Max(lockoutUntil, Time.time + delay);
     }
 
     private void Update()
@@ -88,6 +106,7 @@ public class PukeManager : MonoBehaviour
 
             puddle.Clean();
             lockoutUntil = Time.time + mopLockout;
+            lastMopTime = Time.time;
             return;
         }
     }

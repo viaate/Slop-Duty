@@ -125,11 +125,30 @@ public class SlopLogic : MonoBehaviour
     [SerializeField] private float counterLeftX = -6f;
     [SerializeField] private float counterRightX = 6f;
 
+    [Header("Color separation")]
+    [Tooltip("Smallest perceptual gap allowed between any two pans, in OKLab, where black " +
+             "to white is about 1.0. Under roughly 0.13 two pans start reading as the same " +
+             "color when you are under time pressure.")]
+    [SerializeField, Range(0.05f, 0.35f)] private float minColorGap = 0.17f;
+
+    [Tooltip("Candidates tried per pan. Each is scored against every color already chosen " +
+             "and the furthest one wins.")]
+    [SerializeField, Range(8, 128)] private int candidateTries = 48;
+
+    [Tooltip("Passes that find the closest pair in the finished palette and re-roll one of " +
+             "them. Cheap, and it fixes the corners best-of-N paints itself into.")]
+    [SerializeField, Range(0, 12)] private int repairPasses = 8;
+
+    [Tooltip("How far a decoy color must sit from every pan, as a multiple of the gap " +
+             "above. A decoy has to be obviously absent, not merely different.")]
+    [SerializeField, Range(1f, 2.5f)] private float decoyGapMultiplier = 1.35f;
+
     private List<Color> colors = new List<Color>();
     private List<Slop> slopObjects = new List<Slop>();
 
     private Slop selectedSlop;
     private int activeCount;
+    private float wheelOffset;
 
     // How many pans are currently switched on. This is the brief's third difficulty
     // lever, and it is capped by how many SlopType objects exist in the scene.
@@ -171,9 +190,18 @@ public class SlopLogic : MonoBehaviour
 
     // --- PALETTE ---
 
-    // Hue stratified: the color wheel is cut into `count` sectors and each color is
-    // drawn from its own sector. That makes a minimum hue gap structural instead of lucky,
-    // which is what stops two near-identical greens landing on the counter together.
+    // Three things working together, because any one alone is not enough.
+    //
+    // 1. Hue stratification. The wheel is cut into `count` sectors and each pan draws from
+    //    its own, so a minimum hue gap is structural rather than lucky.
+    // 2. Best of N in OKLab. Within its sector each color is the candidate furthest from
+    //    everything already chosen. Hue gap alone is a bad proxy: 36 degrees in the blues
+    //    is nearly indistinguishable while 36 degrees in the yellows is obvious.
+    // 3. A repair pass that hunts the closest pair and re-rolls one of them, keeping the
+    //    result only when the weakest link in the whole palette actually improves.
+    //
+    // Do not simplify this back to a single random draw per sector. That is what produced
+    // a blue and a blue-violet sitting next to each other.
     public void GeneratePalette(int count)
     {
         if (slopObjects.Count == 0) CollectSlops();
@@ -187,21 +215,111 @@ public class SlopLogic : MonoBehaviour
         activeCount = Mathf.Clamp(count, 1, Mathf.Max(1, Mathf.Min(slopObjects.Count, maxPans)));
 
         colors.Clear();
-        float wheelOffset = Random.value;
+        wheelOffset = Random.value;
 
         for (int i = 0; i < activeCount; i++)
+            colors.Add(BestCandidate(i));
+
+        Repair();
+
+        // Warns rather than silently shipping a bad palette. Asking for a large gap with
+        // many pans is over-constrained: ten pans cannot all sit 0.25 apart on a wheel.
+        if (ClosestPair(out _, out _, out float achieved) && achieved < minColorGap)
         {
-            // Jitter stays inside the sector so colors can never cross into each other.
-            float jitter = Random.Range(-0.35f, 0.35f) / activeCount;
-            float hue = Mathf.Repeat(wheelOffset + (i / (float)activeCount) + jitter, 1f);
-
-            float saturation = Random.Range(0.55f, 0.95f);
-            float value = Random.Range(0.45f, 0.90f);
-
-            colors.Add(Color.HSVToRGB(hue, saturation, value));
+            Debug.LogWarning($"{name}: could only reach a color gap of {achieved:0.000} " +
+                             $"with {activeCount} pans, wanted {minColorGap:0.000}. " +
+                             "Lower Min Color Gap or use fewer pans.", this);
         }
 
         ApplyToCounter();
+    }
+
+    // Best of N inside this pan's hue sector, scored by how far it sits from every color
+    // already chosen.
+    private Color BestCandidate(int index)
+    {
+        Color best = RandomInSector(index);
+        float bestGap = NearestGap(best);
+
+        for (int attempt = 1; attempt < candidateTries; attempt++)
+        {
+            Color candidate = RandomInSector(index);
+            float gap = NearestGap(candidate);
+
+            if (gap <= bestGap) continue;
+
+            bestGap = gap;
+            best = candidate;
+
+            // Comfortably clear already, no point burning the rest of the budget.
+            if (bestGap >= minColorGap * 1.5f) break;
+        }
+
+        return best;
+    }
+
+    private Color RandomInSector(int index)
+    {
+        // A quarter of the sector rather than a third, so stratification still means
+        // something before the perceptual pass gets involved.
+        float jitter = Random.Range(-0.25f, 0.25f) / activeCount;
+        float hue = Mathf.Repeat(wheelOffset + (index / (float)activeCount) + jitter, 1f);
+
+        // Lightness roams a wide band on purpose, so neighbouring hues can separate on
+        // brightness when the wheel itself is crowded.
+        return Color.HSVToRGB(hue, Random.Range(0.55f, 0.95f), Random.Range(0.45f, 0.90f));
+    }
+
+    private float NearestGap(Color candidate)
+    {
+        float nearest = float.MaxValue;
+
+        for (int i = 0; i < colors.Count; i++)
+            nearest = Mathf.Min(nearest, Distance(candidate, colors[i]));
+
+        return nearest;
+    }
+
+    private void Repair()
+    {
+        for (int pass = 0; pass < repairPasses; pass++)
+        {
+            if (!ClosestPair(out _, out int worst, out float gap)) return;
+            if (gap >= minColorGap) return;
+
+            Color original = colors[worst];
+            colors.RemoveAt(worst);
+
+            colors.Insert(worst, BestCandidate(worst));
+
+            ClosestPair(out _, out _, out float after);
+            if (after > gap) continue;
+
+            // The re-roll was no better, so put the original back rather than churning.
+            colors[worst] = original;
+        }
+    }
+
+    private bool ClosestPair(out int a, out int b, out float gap)
+    {
+        a = -1;
+        b = -1;
+        gap = float.MaxValue;
+
+        for (int i = 0; i < colors.Count; i++)
+        {
+            for (int j = i + 1; j < colors.Count; j++)
+            {
+                float d = Distance(colors[i], colors[j]);
+                if (d >= gap) continue;
+
+                gap = d;
+                a = i;
+                b = j;
+            }
+        }
+
+        return a >= 0;
     }
 
     private void ApplyToCounter()
@@ -288,36 +406,83 @@ public class SlopLogic : MonoBehaviour
     }
 
     // A color deliberately unlike anything on the counter, for the "sorry we're out" case.
-    // Best of 40 candidates rather than the first random one, so the answer is never
-    // a color the player could mistake for a pan they actually have.
+    //
+    // Held to a higher bar than the pans are held to each other, because a decoy that is
+    // merely different is a coin flip under pressure, while a decoy that is obviously
+    // absent is a fair test. Chosen at random from everything that clears the bar rather
+    // than always taking the furthest, so it is not a learnable fixed hue.
     public Color GetOffPaletteColor()
     {
+        float required = minColorGap * decoyGapMultiplier;
+
+        List<Color> qualifying = new List<Color>();
         Color best = Color.white;
         float bestGap = -1f;
 
-        for (int attempt = 0; attempt < 40; attempt++)
+        for (int attempt = 0; attempt < 64; attempt++)
         {
             Color candidate = Color.HSVToRGB(Random.value, Random.Range(0.55f, 0.95f), Random.Range(0.45f, 0.90f));
+            float gap = NearestGap(candidate);
 
-            float nearest = float.MaxValue;
-            for (int i = 0; i < colors.Count; i++)
-                nearest = Mathf.Min(nearest, SquaredDistance(candidate, colors[i]));
+            if (gap > bestGap)
+            {
+                bestGap = gap;
+                best = candidate;
+            }
 
-            if (nearest <= bestGap) continue;
-
-            bestGap = nearest;
-            best = candidate;
+            if (gap >= required) qualifying.Add(candidate);
         }
 
+        if (qualifying.Count > 0) return qualifying[Random.Range(0, qualifying.Count)];
+
+        // Nothing cleared the bar, which means the counter is crowded. Take the furthest
+        // we found rather than handing out something indistinguishable.
         return best;
     }
 
-    private static float SquaredDistance(Color a, Color b)
+    // OKLab, not RGB. RGB distance badly misjudges how different two colors look: it rates
+    // a blue against a blue-violet as further apart than a yellow against an orange, which
+    // is the opposite of what the eye reports. OKLab is built to be perceptually uniform,
+    // so one threshold behaves the same everywhere on the wheel.
+    private static float Distance(Color a, Color b)
     {
-        float dr = a.r - b.r;
-        float dg = a.g - b.g;
-        float db = a.b - b.b;
-        return (dr * dr) + (dg * dg) + (db * db);
+        ToOkLab(a, out float l1, out float a1, out float b1);
+        ToOkLab(b, out float l2, out float a2, out float b2);
+
+        float dl = l1 - l2;
+        float da = a1 - a2;
+        float db = b1 - b2;
+
+        return Mathf.Sqrt((dl * dl) + (da * da) + (db * db));
+    }
+
+    private static void ToOkLab(Color c, out float lightness, out float greenRed, out float blueYellow)
+    {
+        float r = ToLinear(c.r);
+        float g = ToLinear(c.g);
+        float bl = ToLinear(c.b);
+
+        float l = (0.4122214708f * r) + (0.5363325363f * g) + (0.0514459929f * bl);
+        float m = (0.2119034982f * r) + (0.6806995451f * g) + (0.1073969566f * bl);
+        float s = (0.0883024619f * r) + (0.2817188376f * g) + (0.6299787005f * bl);
+
+        float lc = Cbrt(l);
+        float mc = Cbrt(m);
+        float sc = Cbrt(s);
+
+        lightness = (0.2104542553f * lc) + (0.7936177850f * mc) - (0.0040720468f * sc);
+        greenRed = (1.9779984951f * lc) - (2.4285922050f * mc) + (0.4505937099f * sc);
+        blueYellow = (0.0259040371f * lc) + (0.7827717662f * mc) - (0.8086757660f * sc);
+    }
+
+    private static float ToLinear(float channel)
+    {
+        return channel <= 0.04045f ? channel / 12.92f : Mathf.Pow((channel + 0.055f) / 1.055f, 2.4f);
+    }
+
+    private static float Cbrt(float value)
+    {
+        return value <= 0f ? 0f : Mathf.Pow(value, 1f / 3f);
     }
 
     // --- SLOP OBJECT LIST ---
