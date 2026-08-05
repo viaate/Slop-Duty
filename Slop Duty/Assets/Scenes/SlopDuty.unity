@@ -677,8 +677,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 49b8cddeadd025849b6cb9c012487694, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  persistAcrossScenes: 1
   track: {fileID: 8300000, guid: 62634b8cf0fdaac4d9d054bc8df05749, type: 3}
   volume: 0.45
+  fadeInSeconds: 1.2
+  followDayTempo: 1
   basePitch: 1
   pitchPerDay: 0.05
   maxPitch: 1.55
