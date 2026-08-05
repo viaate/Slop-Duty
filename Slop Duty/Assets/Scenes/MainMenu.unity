@@ -230,6 +230,18 @@ MonoBehaviour:
   titleBob: 8
   titleBobSpeed: 1.4
   rowSpacing: 30
+  teamPortraits:
+  - {fileID: 21300000, guid: 84beb788476561f4c89a336a07f5be04, type: 3}
+  - {fileID: 21300000, guid: d676f60f05d44124683e34f2d4d3e0e7, type: 3}
+  - {fileID: 21300000, guid: b5f419d7ee6f9ed47af96b4dc11de84f, type: 3}
+  teamNames:
+  - OLIVIA GONSHER
+  - SELENA YUE
+  - JOHN SANDERS
+  portraitPixels: 192
+  portraitGap: 340
+  teamRowY: 150
+  teamCaption: MADE BY
 --- !u!4 &1297104833
 Transform:
   m_ObjectHideFlags: 0
@@ -260,6 +272,8 @@ MonoBehaviour:
   publicCode: 6a7355338f40bb1218a38efa
   privateCode: Fxmg60hoVUm1jk_2Cl6zfQs-JVvLrJs0CmQeUXjhJ3VQ
   topCount: 10
+  logRequests: 1
+  useHttps: 1
 --- !u!1 &1802410251
 GameObject:
   m_ObjectHideFlags: 0

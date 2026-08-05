@@ -54,9 +54,14 @@ public class MenuUI : MonoBehaviour
 
     [SerializeField] private float portraitGap = 340f;
 
-    [Tooltip("Height of the portrait row above the bottom edge. Names and the best score " +
-             "are placed relative to this, so moving it moves the whole block.")]
+    [Tooltip("Height of the portrait row above the bottom edge. The caption, the names and " +
+             "the best score are all placed relative to this, so moving it moves the whole " +
+             "block together.")]
     [SerializeField] private float teamRowY = 150f;
+
+    [Tooltip("Without this the three characters read as decoration and people wonder why " +
+             "those particular kids are on the title screen.")]
+    [SerializeField] private string teamCaption = "MADE BY";
 
     private RectTransform titleRect;
 
@@ -235,14 +240,14 @@ public class MenuUI : MonoBehaviour
                                      new Vector2(0.5f, 1f), new Vector2(0f, -330f), new Vector2(1400f, 36f));
         tagline.Text = "MATCH THE COLOR. DO NOT LOOK AT THE FLOOR.";
 
-        // Pulled up from -470/-570/-670 to clear the bigger portrait row underneath.
-        MakeButton("Play", content, "START SHIFT", new Vector2(0f, -420f), new Vector2(460f, 84f), accent)
+        // Pulled up from -470/-570/-670 to clear the bigger portrait row and its caption.
+        MakeButton("Play", content, "START SHIFT", new Vector2(0f, -400f), new Vector2(460f, 84f), accent)
             .onClick.AddListener(StartShift);
 
-        MakeButton("Training", content, "TRAINING SHIFT", new Vector2(0f, -510f), new Vector2(460f, 84f), inkDim)
+        MakeButton("Training", content, "TRAINING SHIFT", new Vector2(0f, -490f), new Vector2(460f, 84f), inkDim)
             .onClick.AddListener(StartTraining);
 
-        MakeButton("Board", content, "LEADERBOARD", new Vector2(0f, -600f), new Vector2(460f, 84f), inkDim)
+        MakeButton("Board", content, "LEADERBOARD", new Vector2(0f, -580f), new Vector2(460f, 84f), inkDim)
             .onClick.AddListener(ToggleBoard);
 
         BuildTeam(content);
@@ -265,11 +270,20 @@ public class MenuUI : MonoBehaviour
 
         if (count == 0) return;
 
-        float span = portraitSpacing * (count - 1);
+        if (!string.IsNullOrEmpty(teamCaption))
+        {
+            PixelText caption = MakeText("Team Caption", parent, 22, TextAlignmentOptions.Bottom, inkDim,
+                                         new Vector2(0.5f, 0f),
+                                         new Vector2(0f, teamRowY + portraitPixels + 14f),
+                                         new Vector2(900f, 30f));
+            caption.Text = teamCaption;
+        }
+
+        float span = portraitGap * (count - 1);
 
         for (int i = 0; i < count; i++)
         {
-            float x = (-span * 0.5f) + (i * portraitSpacing);
+            float x = (-span * 0.5f) + (i * portraitGap);
 
             if (teamPortraits[i] != null)
             {
@@ -277,7 +291,7 @@ public class MenuUI : MonoBehaviour
                 go.transform.SetParent(parent, false);
 
                 Anchor(go.GetComponent<RectTransform>(), new Vector2(0.5f, 0f),
-                       new Vector2(x, 175f), new Vector2(portraitSize, portraitSize));
+                       new Vector2(x, teamRowY), new Vector2(portraitPixels, portraitPixels));
 
                 Image img = go.AddComponent<Image>();
                 img.sprite = teamPortraits[i];
@@ -285,9 +299,11 @@ public class MenuUI : MonoBehaviour
                 img.raycastTarget = false;
             }
 
-            PixelText label = MakeText($"Name {i}", parent, 20, TextAlignmentOptions.Top, ink,
-                                       new Vector2(0.5f, 0f), new Vector2(x, 118f),
-                                       new Vector2(portraitSpacing - 20f, 30f));
+            // Sits below the row rather than at a fixed height, so resizing the portraits
+            // only pushes their tops up and never lands the name on top of the artwork.
+            PixelText label = MakeText($"Name {i}", parent, 22, TextAlignmentOptions.Top, ink,
+                                       new Vector2(0.5f, 0f), new Vector2(x, teamRowY - 58f),
+                                       new Vector2(portraitGap - 20f, 30f));
             label.Text = teamNames[i];
         }
     }
