@@ -9,6 +9,11 @@ public class IndividualStudent : MonoBehaviour
     [Header("Fallback, used only when there is no GameManager")]
     [SerializeField] private float fallbackPatience = 10f;
 
+    [Header("Exit")]
+    [Tooltip("How fast a resolved kid bolts off screen. High on purpose: their slot has " +
+             "already been freed, so a slow exit just reads as a bug.")]
+    [SerializeField] private float exitSpeed = 34f;
+
     private Color assignedColor;
     private bool waiting;     // standing at the counter with the patience clock running
     private bool resolved;    // already dealt with, ignore any further input
@@ -18,21 +23,19 @@ public class IndividualStudent : MonoBehaviour
 
     private Student student;
     private StudentQueue queue;
-    private SlopOutButton slopOutButton;
 
     // 1 on arrival, 0 when they give up. Drive a patience bar off this.
     public float PatienceNormalized => patienceTotal <= 0f ? 1f : Mathf.Clamp01(patienceLeft / patienceTotal);
+
+    public bool IsResolved => resolved;
 
     private void Awake()
     {
         student = GetComponent<Student>();
 
-        // Falls back to this object's own renderer so the colour still shows without
+        // Falls back to this object's own renderer so the color still shows without
         // anyone wiring the slot by hand.
         if (studentSpriteRenderer == null) studentSpriteRenderer = GetComponent<SpriteRenderer>();
-
-        // A prefab cannot hold a scene reference, so this is found at runtime.
-        slopOutButton = FindFirstObjectByType<SlopOutButton>();
     }
 
     // Pushed by StudentQueue at spawn. Do not rely on GetComponentInParent during Awake,
@@ -87,8 +90,7 @@ public class IndividualStudent : MonoBehaviour
     }
 
     // OverlapPointAll, not OverlapPoint. OverlapPoint returns one arbitrary collider,
-    // so anything else sitting under the cursor swallows the click. A cursor-following
-    // ladle does exactly that, and puke puddles and roaches will too.
+    // so anything else sitting under the cursor swallows the click.
     // GetComponentInParent rather than a gameObject comparison, so a collider on a child
     // of the student still counts as hitting the student.
     private bool IsUnderCursor()
@@ -96,12 +98,20 @@ public class IndividualStudent : MonoBehaviour
         Vector2 world = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         Collider2D[] hits = Physics2D.OverlapPointAll(world);
 
+        bool onMe = false;
+
         for (int i = 0; i < hits.Length; i++)
         {
-            if (hits[i].GetComponentInParent<IndividualStudent>() == this) return true;
+            // A puddle under the cursor always wins: that click is a mop, not a serve.
+            // Checked here rather than with a "click consumed" flag on PukeManager,
+            // because Unity does not guarantee which component's Update runs first,
+            // so a flag would resolve differently from frame to frame.
+            if (hits[i].GetComponentInParent<PukePuddle>() != null) return false;
+
+            if (hits[i].GetComponentInParent<IndividualStudent>() == this) onMe = true;
         }
 
-        return false;
+        return onMe;
     }
 
     private Color GenerateColor()
@@ -114,7 +124,7 @@ public class IndividualStudent : MonoBehaviour
             : 0.12f;
 
         // A small share of kids want something that is not on the counter at all.
-        // For them the only correct answer is the "sorry we're out" button.
+        // For them the only correct answer is the sorry-we're-out button.
         if (Random.value < outChance) return logic.GetOffPaletteColor();
 
         return logic.GetColor(Random.Range(0, logic.GetColorCount()));
@@ -128,21 +138,29 @@ public class IndividualStudent : MonoBehaviour
         // A full puddle shuts the counter down, and you cannot serve mid-mop either.
         if (PukeManager.Instance != null && PukeManager.Instance.ServingBlocked) return;
 
-        bool saidOut = slopOutButton != null && slopOutButton.GetSlopOutPressed();
         Slop selected = logic.GetSelectedSlop();
-        bool holdingSlop = selected != null && selected.GetIsSelected();
 
-        // No pan picked up and no "we're out" claim, so this click is not an answer yet.
-        if (!saidOut && !holdingSlop) return;
+        // Nothing scooped up yet, so this click is not an answer.
+        if (selected == null || !selected.GetIsSelected()) return;
 
-        bool correct = saidOut
-            ? !logic.IsOnCounter(assignedColor)          // right only if we really are out
-            : selected.GetColor() == assignedColor;
+        // The selection deliberately survives the serve, so you can hand the same color
+        // to several kids in a row without re-clicking the pan every time.
+        Resolve(selected.GetColor() == assignedColor, false);
+    }
 
-        if (slopOutButton != null) slopOutButton.ResetButton();
-        logic.ClearSelection();
+    // Driven by the sorry-we're-out button, which now acts on the front of the line
+    // rather than making the player click a specific kid.
+    public void AnswerOutOfStock()
+    {
+        if (resolved) return;
 
-        Resolve(correct, false);
+        SlopLogic logic = SlopLogic.Instance;
+        if (logic == null) return;
+
+        if (PukeManager.Instance != null && PukeManager.Instance.ServingBlocked) return;
+
+        // Right only if this kid genuinely wanted something that is not on the counter.
+        Resolve(!logic.IsOnCounter(assignedColor), false);
     }
 
     private void Resolve(bool correct, bool walkedOut)
@@ -165,9 +183,9 @@ public class IndividualStudent : MonoBehaviour
         Leave();
     }
 
-    // Every exit path goes through here. Removing from the queue before destroying is
-    // the whole fix: previously the queue kept holding destroyed students, so its count
-    // never dropped, IsFull stayed true and spawning stopped forever after four kids.
+    // Every exit path goes through here. Removing from the queue before leaving is what
+    // lets the line close up: previously the queue kept holding destroyed students, so
+    // its count never dropped and spawning stopped forever after four kids.
     private void Leave()
     {
         if (queue == null) queue = GetComponentInParent<StudentQueue>();
@@ -175,7 +193,22 @@ public class IndividualStudent : MonoBehaviour
         if (queue != null) queue.Remove(student);
         else Debug.LogWarning($"{name} left without a StudentQueue, so the line will not close up.", this);
 
-        Destroy(gameObject);
+        // Stop soaking up clicks meant for whoever shuffles into their place.
+        Collider2D hitbox = GetComponentInChildren<Collider2D>();
+        if (hitbox != null) hitbox.enabled = false;
+
+        // Unparented so the queue's reflow cannot drag them back into a slot mid-exit.
+        transform.SetParent(null, true);
+
+        student.ExitTo(OffScreenRight(), exitSpeed);
+    }
+
+    private float OffScreenRight()
+    {
+        Camera cam = Camera.main;
+        if (cam == null) return transform.position.x + 20f;
+
+        return cam.transform.position.x + (cam.orthographicSize * cam.aspect) + 3f;
     }
 
     // --- GETTERS & SETTERS ---

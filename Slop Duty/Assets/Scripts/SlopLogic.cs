@@ -111,6 +111,20 @@ public class SlopLogic : MonoBehaviour
     [Tooltip("Used only if there is no GameManager driving the day. GameManager overrides this.")]
     [SerializeField, Range(1, 10)] private int startingColors = 3;
 
+    [Header("Counter")]
+    [Tooltip("Extra pans are spawned from this when a harder day needs more colors " +
+             "than there are pans in the scene. Leave empty to only ever use hand-placed pans.")]
+    [SerializeField] private Slop slopPrefab;
+
+    [Tooltip("Hard ceiling on pans, matching the highest slopColors any day asks for.")]
+    [SerializeField, Range(1, 16)] private int maxPans = 10;
+
+    [Tooltip("Spread the active pans evenly between these two, as offsets from this object. " +
+             "Turn off to keep pans wherever they were placed by hand.")]
+    [SerializeField] private bool autoLayout = true;
+    [SerializeField] private float counterLeftX = -6f;
+    [SerializeField] private float counterRightX = 6f;
+
     private List<Color> colors = new List<Color>();
     private List<Slop> slopObjects = new List<Slop>();
 
@@ -157,24 +171,27 @@ public class SlopLogic : MonoBehaviour
 
     // --- PALETTE ---
 
-    // Hue stratified: the colour wheel is cut into `count` sectors and each colour is
+    // Hue stratified: the color wheel is cut into `count` sectors and each color is
     // drawn from its own sector. That makes a minimum hue gap structural instead of lucky,
     // which is what stops two near-identical greens landing on the counter together.
     public void GeneratePalette(int count)
     {
         if (slopObjects.Count == 0) CollectSlops();
 
+        // Build any pans this day needs but the scene does not have yet.
+        EnsurePanCount(Mathf.Min(count, maxPans));
+
         // The palette can never be larger than the number of pans actually on the counter.
-        // If it were, students would ask for colours that physically are not there, every
+        // If it were, students would ask for colors that physically are not there, every
         // one of those would count as "we're out", and the game would be unplayable.
-        activeCount = Mathf.Clamp(count, 1, Mathf.Max(1, slopObjects.Count));
+        activeCount = Mathf.Clamp(count, 1, Mathf.Max(1, Mathf.Min(slopObjects.Count, maxPans)));
 
         colors.Clear();
         float wheelOffset = Random.value;
 
         for (int i = 0; i < activeCount; i++)
         {
-            // Jitter stays inside the sector so colours can never cross into each other.
+            // Jitter stays inside the sector so colors can never cross into each other.
             float jitter = Random.Range(-0.35f, 0.35f) / activeCount;
             float hue = Mathf.Repeat(wheelOffset + (i / (float)activeCount) + jitter, 1f);
 
@@ -197,10 +214,53 @@ public class SlopLogic : MonoBehaviour
             bool on = i < activeCount;
             s.gameObject.SetActive(on);
 
-            if (on) s.SetColor(GetColor(i));
+            if (!on) continue;
+
+            // Re-spread every time the count changes, otherwise adding a seventh pan
+            // leaves a gap at one end and a pile-up at the other.
+            if (autoLayout) s.transform.position = PanPosition(i, activeCount);
+
+            s.SetColor(GetColor(i));
         }
 
-        selectedSlop = null;
+        // A new day repaints every pan, so any held scoop is now the wrong color.
+        // Each pan's own flag has to be cleared too, not just this reference, or a pan
+        // keeps claiming it is selected and the player can serve with a stale color.
+        ClearSelection();
+    }
+
+    // Without this the color lever silently caps at however many SlopType objects
+    // somebody happened to drag into the scene, so the difficulty stops ramping.
+    private void EnsurePanCount(int wanted)
+    {
+        if (slopPrefab == null || wanted <= slopObjects.Count) return;
+
+        while (slopObjects.Count < wanted)
+        {
+            Slop pan = Instantiate(slopPrefab, transform);
+            pan.name = $"SlopType ({slopObjects.Count})";
+            slopObjects.Add(pan);
+        }
+    }
+
+    private Vector3 PanPosition(int index, int total)
+    {
+        float offset = total <= 1
+            ? (counterLeftX + counterRightX) * 0.5f
+            : Mathf.Lerp(counterLeftX, counterRightX, index / (float)(total - 1));
+
+        return transform.position + new Vector3(offset, 0f, 0f);
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!autoLayout) return;
+
+        Gizmos.color = Color.magenta;
+
+        int preview = Mathf.Clamp(Application.isPlaying ? activeCount : startingColors, 1, maxPans);
+        for (int i = 0; i < preview; i++)
+            Gizmos.DrawWireCube(PanPosition(i, preview), new Vector3(0.8f, 0.5f, 0f));
     }
 
     public Color GetColor(int index)
@@ -215,7 +275,7 @@ public class SlopLogic : MonoBehaviour
 
     public int GetColorCount() => colors.Count;
 
-    // True if a pan that is currently switched on is this colour.
+    // True if a pan that is currently switched on is this color.
     public bool IsOnCounter(Color wanted)
     {
         for (int i = 0; i < slopObjects.Count && i < activeCount; i++)
@@ -227,9 +287,9 @@ public class SlopLogic : MonoBehaviour
         return false;
     }
 
-    // A colour deliberately unlike anything on the counter, for the "sorry we're out" case.
+    // A color deliberately unlike anything on the counter, for the "sorry we're out" case.
     // Best of 40 candidates rather than the first random one, so the answer is never
-    // a colour the player could mistake for a pan they actually have.
+    // a color the player could mistake for a pan they actually have.
     public Color GetOffPaletteColor()
     {
         Color best = Color.white;

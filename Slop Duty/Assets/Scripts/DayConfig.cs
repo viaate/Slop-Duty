@@ -11,7 +11,7 @@ public struct DayConfig
     public int quota;        // kids to resolve before the day rolls over
 
     // Difficulty moves on three levers only, exactly as the brief says: how fast kids
-    // arrive, how long they wait, and how many colours are on the counter.
+    // arrive, how long they wait, and how many colors are on the counter.
     //
     // The number that decides whether the game can be lost at all is reward minus
     // arrival, which is the clock a PERFECT player nets per kid. While it is positive,
@@ -38,7 +38,26 @@ public struct DayConfig
         };
     }
 
-    // The tutorial shift. No clock, generous patience, two colours.
+    private static readonly string[] Weekdays =
+    {
+        "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY",
+    };
+
+    // Day 0 is the Sunday training shift. After that it is school days only, five to a
+    // week, so the run reads as term time rather than a number going up.
+    public static string NameFor(int day)
+    {
+        if (day <= 0) return "SUNDAY";
+        return Weekdays[(day - 1) % Weekdays.Length];
+    }
+
+    public static int WeekFor(int day)
+    {
+        if (day <= 0) return 1;
+        return ((day - 1) / Weekdays.Length) + 1;
+    }
+
+    // The tutorial shift. No clock, generous patience, two colors.
     public static readonly DayConfig Sunday = new DayConfig
     {
         arrivalInterval = 4.5f,

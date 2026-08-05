@@ -30,6 +30,9 @@ public class StudentQueue : MonoBehaviour
     public int Count => line.Count;
     public bool IsFull => line.Count >= maxStudents;
 
+    // Index 0 is the kid at frontX, which is the one who has been there longest.
+    public Student Front => line.Count > 0 ? line[0] : null;
+
     private void Awake()
     {
         if (studentPrefab != null) return;

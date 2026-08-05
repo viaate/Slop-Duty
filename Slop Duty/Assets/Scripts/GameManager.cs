@@ -17,7 +17,7 @@ public class GameManager : MonoBehaviour
              "The main menu's tutorial button overrides this.")]
     [SerializeField] private int startDay = 1;
 
-    [Tooltip("Share of kids who want a colour that is not on the counter. " +
+    [Tooltip("Share of kids who want a color that is not on the counter. " +
              "For them the only correct answer is the sorry-we're-out button.")]
     [SerializeField, Range(0f, 0.5f)] private float outOfStockChance = 0.12f;
 
@@ -30,6 +30,12 @@ public class GameManager : MonoBehaviour
     [SerializeField] private float clockCap = 60f;
 
     [SerializeField] private bool freezeOnGameOver = true;
+
+    // Fired with the new day number whenever a shift begins, including the first.
+    public event System.Action<int> DayStarted;
+
+    // Fired once, when the clock runs out.
+    public event System.Action RunEnded;
 
     public DayConfig Today { get; private set; }
     public int Day { get; private set; }
@@ -92,10 +98,13 @@ public class GameManager : MonoBehaviour
 
         if (queue != null) queue.Configure(Today);
         if (slopLogic != null) slopLogic.GeneratePalette(Today.slopColors);
+
+        DayStarted?.Invoke(Day);
     }
 
-    // --- called by IndividualStudent. worldX is where the kid was standing, so a
-    //     failure leaves its mess underneath them rather than in a fixed spot. ---
+    // --- called by IndividualStudent. worldX is unused now that every mess piles into
+    //     one puddle, but it is kept on the signature so a future version can place
+    //     splatter where the kid was standing. ---
 
     public void ReportCorrect(float worldX)
     {
@@ -103,6 +112,7 @@ public class GameManager : MonoBehaviour
 
         Stats.served++;
         if (timer != null) timer.AddTime(Today.reward);
+        if (puke != null) puke.NoteServe();
         CountResolution();
     }
 
@@ -110,9 +120,15 @@ public class GameManager : MonoBehaviour
     {
         if (RunOver) return;
 
-        Stats.wrongColour++;
+        Stats.wrongColor++;
         if (timer != null) timer.SubtractTime(Today.penalty);
-        if (puke != null) puke.AddMess(worldX);
+
+        if (puke != null)
+        {
+            puke.AddMess();
+            puke.NoteServe();
+        }
+
         CountResolution();
     }
 
@@ -122,7 +138,13 @@ public class GameManager : MonoBehaviour
 
         Stats.walkedOut++;
         if (timer != null) timer.SubtractTime(Today.penalty);
-        if (puke != null) puke.AddMess(worldX);
+
+        if (puke != null)
+        {
+            puke.AddMess();
+            puke.NoteServe();
+        }
+
         CountResolution();
     }
 
@@ -133,6 +155,11 @@ public class GameManager : MonoBehaviour
 
         resolvedToday = 0;
         Stats.daysCleared++;
+
+        // Surviving the training shift is what marks it as done, so the menu can send
+        // first timers through Sunday and everyone else straight to Monday.
+        if (Day == 0) HighScores.TutorialDone = true;
+
         Day++;
         ApplyDay();
 
@@ -147,9 +174,12 @@ public class GameManager : MonoBehaviour
         if (queue != null) queue.StopSpawning();
 
         Debug.Log($"RUN OVER. Days cleared {Stats.daysCleared}, served {Stats.served}, " +
-                  $"wrong {Stats.wrongColour}, walked out {Stats.walkedOut}, " +
+                  $"wrong {Stats.wrongColor}, walked out {Stats.walkedOut}, " +
                   $"accuracy {Stats.Accuracy:P0}");
 
+        RunEnded?.Invoke();
+
+        // Raised before the freeze so anything listening still gets a frame to react.
         if (freezeOnGameOver) Time.timeScale = 0f;
     }
 }

@@ -25,6 +25,20 @@ public class Student : MonoBehaviour
     private float targetX;
     private bool walking;
     private bool hasArrived;
+    private bool exiting;
+
+    public bool IsExiting => exiting;
+
+    // Bolt off screen and delete on arrival. Used when a kid is dismissed or served, so
+    // they visibly clear out instead of vanishing on the spot.
+    public void ExitTo(float worldX, float speed)
+    {
+        exiting = true;
+        hasArrived = true;        // makes Update use the fast lane below
+        shuffleSpeed = Mathf.Max(0.01f, speed);
+        targetX = worldX;
+        walking = true;
+    }
 
     private void Awake() => group = GetComponent<SortingGroup>();
 
@@ -51,6 +65,13 @@ public class Student : MonoBehaviour
         if (pos.x != targetX) return;
 
         walking = false;
+
+        if (exiting)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         if (hasArrived) return;   // shuffling forward is not a fresh arrival
 
         hasArrived = true;
