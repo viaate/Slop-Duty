@@ -263,7 +263,13 @@ public class SpeechBubble : MonoBehaviour
         float y = Mathf.Clamp(canvasLocal.y, -halfH + (h * 0.5f) + ScreenMargin,
                                               halfH - (h * 0.5f) - ScreenMargin);
 
-        rect.anchoredPosition = new Vector2(x, y);
+        // Only written when it actually moved. Assigning anchoredPosition dirties the canvas
+        // and Unity rebuilds and rebatches all of it, so writing the same position every
+        // frame paid for a full UI rebuild to change nothing.
+        Vector2 want = new Vector2(x, y);
+        if ((rect.anchoredPosition - want).sqrMagnitude < 0.0001f) return;
+
+        rect.anchoredPosition = want;
     }
 
     public void Close() => closing = true;
@@ -285,7 +291,9 @@ public class SpeechBubble : MonoBehaviour
         float fade = Mathf.MoveTowards(group != null ? group.alpha : 0f, target,
                                        Time.unscaledDeltaTime * 6f);
 
-        if (group != null) group.alpha = fade;
+        // Same reason: a CanvasGroup alpha write dirties the canvas, and once a tooltip has
+        // finished fading in this was setting 1 to 1 for as long as it stayed on screen.
+        if (group != null && !Mathf.Approximately(group.alpha, fade)) group.alpha = fade;
 
         if (closing && fade <= 0f) Destroy(gameObject);
     }

@@ -18,12 +18,14 @@ public class BossVisitor : MonoBehaviour
 {
     private enum Phase { Falling, Ordering, Leaving }
 
-    private SpriteRenderer body;
-    private SpriteRenderer bubble;
-    private Sprite requestArt;
+    // One entry per person. A solo boss has one, the TAs have two, and everything below
+    // works the same either way: orders are handed out to whoever is free and clicks are
+    // matched against whichever seat was actually under the cursor.
+    private readonly List<BossSeat> seats = new List<BossSeat>();
 
     private readonly List<Color> orders = new List<Color>();
     private int served;
+    private int handedOut;
 
     private BoostKind prize;
     private string owner = string.Empty;
@@ -59,15 +61,14 @@ public class BossVisitor : MonoBehaviour
     // playing for it. A prize only revealed on winning is not a motivation, it is a surprise.
     public BoostKind Prize => prize;
 
-    public void Begin(Sprite portrait, BossDirector.BubbleArt art, string who, BoostKind boost,
+    public void Begin(Sprite[] portraits, BossDirector.BubbleArt art, string who, BoostKind boost,
                       int orderCount, float seconds, Vector3 stand, float dropHeight,
-                      float shake, float shakeTime, float scale, float pay)
+                      float shake, float shakeTime, float scale, float pay, float spread)
     {
         owner = who;
         prize = boost;
         timeLimit = Mathf.Max(1f, seconds);
         timeLeft = timeLimit;
-        requestArt = art.slop;
         payPerOrder = pay;
         shakeAmount = shake;
         shakeSeconds = shakeTime;
@@ -86,56 +87,35 @@ public class BossVisitor : MonoBehaviour
         SortingGroup group = gameObject.AddComponent<SortingGroup>();
         group.sortingOrder = 0;
 
-        body = gameObject.AddComponent<SpriteRenderer>();
-        body.sprite = portrait;
-        body.sortingOrder = 2;
-
-        BuildBubble(art);
-        BuildHitbox(portrait);
+        BuildSeats(portraits, art, spread);
         RollOrders(orderCount);
     }
 
-    // Three stacked layers, same as the kids carry: the speech bubble, the bowl inside it,
-    // and the slop in the bowl. Only the slop is repainted.
-    //
-    // This was one sprite at a guessed offset to begin with, which is why it came out as a
-    // giant blob floating near the ceiling: the offset was written as though it were world
-    // units, then multiplied again by the boss's own scale. Copying the prefab's actual
-    // numbers is the fix, and it makes a boss order look like every other order.
-    private void BuildBubble(BossDirector.BubbleArt art)
+    // One seat per portrait, spread evenly about the centre so a duo lands either side of
+    // where a solo boss would have stood rather than one of them being off to a side.
+    private void BuildSeats(Sprite[] portraits, BossDirector.BubbleArt art, float spread)
     {
-        GameObject go = new GameObject("Boss Bubble");
-        go.transform.SetParent(transform, false);
-        go.transform.localPosition = art.offset;
+        seats.Clear();
 
-        Layer("Bubble BG", go.transform, art.background, 5);
-        Layer("Bubble Bowl", go.transform, art.bowl, 6);
+        int count = portraits == null ? 0 : portraits.Length;
+        if (count == 0) return;
 
-        bubble = Layer("Bubble Slop", go.transform, art.slop, 7);
-    }
+        for (int i = 0; i < count; i++)
+        {
+            if (portraits[i] == null) continue;
 
-    private static SpriteRenderer Layer(string layerName, Transform parent, Sprite sprite, int order)
-    {
-        GameObject go = new GameObject(layerName);
-        go.transform.SetParent(parent, false);
+            GameObject go = new GameObject($"Seat {i}");
+            go.transform.SetParent(transform, false);
 
-        SpriteRenderer r = go.AddComponent<SpriteRenderer>();
-        r.sprite = sprite;
-        r.sortingOrder = order;
+            // Centred: one person sits at 0, two sit at minus and plus half the spread.
+            float offset = count == 1 ? 0f : ((i / (float)(count - 1)) - 0.5f) * spread;
+            go.transform.localPosition = new Vector3(offset, 0f, 0f);
 
-        return r;
-    }
+            BossSeat seat = go.AddComponent<BossSeat>();
+            seat.Build(portraits[i], art);
 
-    // Sized off the artwork rather than a fixed box, so a taller boss is not clickable
-    // above their own head and a shorter one is not unclickable at the shoulders.
-    private void BuildHitbox(Sprite portrait)
-    {
-        BoxCollider2D box = gameObject.AddComponent<BoxCollider2D>();
-
-        if (portrait == null) return;
-
-        box.size = portrait.bounds.size;
-        box.offset = portrait.bounds.center;
+            seats.Add(seat);
+        }
     }
 
     // Every order is a color that IS on the counter, so a boss is always answerable. The
@@ -167,38 +147,25 @@ public class BossVisitor : MonoBehaviour
             orders.Add(next);
         }
 
-        ShowOrder();
+        handedOut = 0;
+        DealOrders();
     }
 
-    private void ShowOrder()
+    // Everybody with nothing to ask for takes the next order off the pile.
+    //
+    // A duo therefore has TWO live requests at once rather than taking turns, which is the
+    // whole point of there being two of them: you choose who to serve, and one held scoop
+    // might satisfy either. Taking turns would just be a solo boss with a spare drawing.
+    private void DealOrders()
     {
-        if (bubble == null) return;
-
-        if (served >= orders.Count)
+        for (int i = 0; i < seats.Count; i++)
         {
-            bubble.enabled = false;
-            return;
+            if (seats[i] == null || seats[i].Asking) continue;
+            if (handedOut >= orders.Count) continue;
+
+            seats[i].Ask(orders[handedOut]);
+            handedOut++;
         }
-
-        Color want = orders[served];
-
-        bubble.enabled = true;
-
-        Sprite painted = requestArt != null ? SpriteRecolor.For(requestArt, want) : null;
-
-        if (painted != null)
-        {
-            bubble.sprite = painted;
-            bubble.color = Color.white;
-        }
-        else
-        {
-            bubble.sprite = requestArt;
-            bubble.color = want;
-        }
-
-        SlopLogic logic = SlopLogic.Instance;
-        SymbolBadge.Apply(bubble, logic != null ? logic.SymbolFor(want) : -1, 0.34f);
     }
 
     private void Update()
@@ -249,8 +216,16 @@ public class BossVisitor : MonoBehaviour
             return;
         }
 
+        DealOrders();
+
         if (!Input.GetMouseButtonDown(0)) return;
-        if (!UnderCursor()) return;
+
+        // WHICH of them was clicked, not merely whether the boss was. With two people
+        // standing there, "was it me" is not enough: serving the wrong one the right color
+        // has to count as a mistake, or a duo would be no harder than one person with two
+        // pictures.
+        BossSeat clicked = SeatUnderCursor();
+        if (clicked == null || !clicked.Asking) return;
 
         SlopLogic logic = SlopLogic.Instance;
         if (logic == null) return;
@@ -260,7 +235,7 @@ public class BossVisitor : MonoBehaviour
         Slop held = logic.GetSelectedSlop();
         if (held == null || !held.GetIsSelected()) return;
 
-        bool right = held.GetColor() == orders[served];
+        bool right = clicked.Wants(held.GetColor());
 
         GameManager game = GameManager.Instance;
 
@@ -270,13 +245,14 @@ public class BossVisitor : MonoBehaviour
             // what makes a run survivable past the point the ordinary reward curve gives up.
             // A wrong one is charged exactly like any other mistake, so the penalty still
             // scales and a boss is not a free place to guess.
-            if (right) game.ReportBossOrder(transform.position, payPerOrder);
-            else game.ReportWrong(transform.position);
+            if (right) game.ReportBossOrder(clicked.transform.position, payPerOrder);
+            else game.ReportWrong(clicked.transform.position);
         }
 
         if (!right) return;
 
         served++;
+        clicked.Quiet();
 
         if (served >= orders.Count)
         {
@@ -284,30 +260,31 @@ public class BossVisitor : MonoBehaviour
             return;
         }
 
-        ShowOrder();
+        DealOrders();
     }
 
     // Same trap as the students: OverlapPoint returns one arbitrary collider, so anything
     // else under the cursor would swallow the click.
-    private bool UnderCursor()
+    private BossSeat SeatUnderCursor()
     {
         Camera cam = Camera.main;
-        if (cam == null) return false;
+        if (cam == null) return null;
 
         Vector2 point = cam.ScreenToWorldPoint(Input.mousePosition);
         Collider2D[] hits = Physics2D.OverlapPointAll(point);
 
-        bool onMe = false;
+        BossSeat found = null;
 
         for (int i = 0; i < hits.Length; i++)
         {
             // A puddle under the cursor always wins: that click is a mop, not a serve.
-            if (hits[i].GetComponentInParent<PukePuddle>() != null) return false;
+            if (hits[i].GetComponentInParent<PukePuddle>() != null) return null;
 
-            if (hits[i].GetComponentInParent<BossVisitor>() == this) onMe = true;
+            BossSeat seat = hits[i].GetComponentInParent<BossSeat>();
+            if (seat != null && seats.Contains(seat)) found = seat;
         }
 
-        return onMe;
+        return found;
     }
 
     private void Finish(bool won)
@@ -320,10 +297,10 @@ public class BossVisitor : MonoBehaviour
             WeekBoost.Grant(prize, DayConfig.WeekFor(GameManager.Instance.Day), owner);
         }
 
-        if (bubble != null) bubble.enabled = false;
-
-        BoxCollider2D box = GetComponent<BoxCollider2D>();
-        if (box != null) box.enabled = false;
+        foreach (BossSeat seat in seats)
+        {
+            if (seat != null) seat.Disable();
+        }
 
         phase = Phase.Leaving;
         leaveClock = 0f;

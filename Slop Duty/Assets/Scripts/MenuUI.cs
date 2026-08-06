@@ -830,10 +830,14 @@ public class MenuUI : MonoBehaviour
         public TextMeshProUGUI main;
         public TextMeshProUGUI shadow;
 
+        // Same guard as GameUI: writing a string rebuilds TextMeshPro's mesh whether or not
+        // it differs, and the menu polls the leaderboard every frame while it is open.
         public string Text
         {
             set
             {
+                if (main.text == value) return;
+
                 main.text = value;
                 shadow.text = value;
             }

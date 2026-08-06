@@ -91,6 +91,7 @@ public class GameUI : MonoBehaviour
     private PixelText bossPrize;
     private PixelText boostLabel;
     private BossDirector bossDirector;
+    private bool searchedForBoss;
 
     private GameObject hudRoot;
     private RectTransform popupLayer;
@@ -130,16 +131,33 @@ public class GameUI : MonoBehaviour
         public TextMeshProUGUI main;
         public TextMeshProUGUI shadow;
 
+        // Both setters bail out when nothing changed, and that is the single biggest win in
+        // this file.
+        //
+        // The HUD assigns most of these every frame. Handing TextMeshPro a string rebuilds
+        // its mesh whether or not the string differs, and writing a Graphic's color marks
+        // the canvas dirty, which makes Unity rebuild and rebatch the entire UI. So the day
+        // name, the week, the quota and the clock tint were each paying for a full rebuild
+        // sixty times a second to display exactly what they displayed last frame.
         public string Text
         {
             set
             {
+                if (main.text == value) return;
+
                 main.text = value;
                 shadow.text = value;
             }
         }
 
-        public Color Tint { set => main.color = value; }
+        public Color Tint
+        {
+            set
+            {
+                if (main.color == value) return;
+                main.color = value;
+            }
+        }
         public GameObject Root => root.gameObject;
     }
 
@@ -257,7 +275,13 @@ public class GameUI : MonoBehaviour
             // Snapped to whole steps rather than a smooth sine, so it ticks like a
             // sprite animation instead of breathing like a web page.
             float step = low && (Mathf.FloorToInt(Time.unscaledTime * 6f) % 2 == 0) ? 1.08f : 1f;
-            clockLabel.root.localScale = Vector3.one * step;
+
+            // Only written when it actually changed. A transform write on a canvas child
+            // dirties the whole canvas, and this value is 1 for all but the last ten seconds
+            // of a day and then alternates six times a second, so almost every frame was
+            // paying for a UI rebuild to set 1 to 1.
+            if (!Mathf.Approximately(clockLabel.root.localScale.x, step))
+                clockLabel.root.localScale = Vector3.one * step;
         }
 
         RefreshBoss();
@@ -275,8 +299,15 @@ public class GameUI : MonoBehaviour
     {
         if (bossLabel == null) return;
 
-        if (bossDirector == null)
+        // Searched ONCE, not every frame.
+        //
+        // A failed search left the field null and the next frame tried again, so in any
+        // scene without a BossDirector this was a scene-wide FindFirstObjectByType sixty
+        // times a second, forever. It is one of the most expensive calls in Unity.
+        if (!searchedForBoss)
         {
+            searchedForBoss = true;
+
             bossDirector = FindFirstObjectByType<BossDirector>();
             if (bossDirector != null) bossDirector.Resolved += OnBossResolved;
         }

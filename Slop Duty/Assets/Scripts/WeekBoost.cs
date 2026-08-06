@@ -8,6 +8,7 @@ public enum BoostKind
     CleanFloor,     // the floor stays cleaner for longer
     Forgiving,      // mistakes cost less
     AutoSorter,     // the system screens out orders you cannot fill
+    ExtraHands,     // shorter days, because somebody else is serving too
 }
 
 // A perk won off a boss, good for the rest of that week.
@@ -51,6 +52,18 @@ public static class WeekBoost
     public static float MessScale(int day) =>
         ActiveOn(day) && Kind == BoostKind.CleanFloor ? 0.5f : 1f;
 
+    // How many colors Selena's perk takes off the counter.
+    //
+    // Applied by SlopLogic, AFTER it clamps the day's request down to the number of pans
+    // that actually exist, and deliberately not folded into DayConfig like the others.
+    //
+    // Folded in early it silently did nothing: the day asks for up to ten colors, the
+    // counter only has eight pans, so from day eleven the request was already being clamped
+    // ten to eight, and subtracting one first only made it nine to eight. The perk was live,
+    // named on the HUD, and changing nothing whatsoever.
+    public static int FewerColors(int day) =>
+        ActiveOn(day) && Kind == BoostKind.SimplePalette ? 1 : 0;
+
     // Al's, and the only boost that removes a decision rather than softening a number.
     //
     // With the sorter running, nobody walks up asking for a color the counter has not got,
@@ -73,14 +86,15 @@ public static class WeekBoost
                 day.reward *= 1.6f;
                 break;
 
-            case BoostKind.SimplePalette:
-                // Floored at two. One color on the counter is not an easier game, it is a
-                // game with nothing left to get wrong.
-                day.slopColors = Mathf.Max(2, day.slopColors - 1);
-                break;
-
             case BoostKind.Forgiving:
                 day.penalty *= 0.5f;
+                break;
+
+            case BoostKind.ExtraHands:
+                // The TAs', and the only perk that shortens the day rather than easing it.
+                // Everything else changes how a shift plays; this one changes how long it
+                // is. Floored at four so a day is still a day.
+                day.quota = Mathf.Max(4, day.quota - 2);
                 break;
 
         }
@@ -99,6 +113,7 @@ public static class WeekBoost
             case BoostKind.CleanFloor: return "CLEAN FLOOR";
             case BoostKind.Forgiving: return "FORGIVING";
             case BoostKind.AutoSorter: return "AUTO SORTER";
+            case BoostKind.ExtraHands: return "EXTRA HANDS";
             default: return string.Empty;
         }
     }
@@ -117,6 +132,7 @@ public static class WeekBoost
             case BoostKind.CleanFloor: return "THE FLOOR GETS DIRTY HALF AS FAST";
             case BoostKind.Forgiving: return "MISTAKES COST HALF THE TIME";
             case BoostKind.AutoSorter: return "NOBODY ASKS FOR WHAT YOU HAVE NOT GOT";
+            case BoostKind.ExtraHands: return "TWO FEWER KIDS TO CLEAR EACH DAY";
             default: return string.Empty;
         }
     }

@@ -233,31 +233,33 @@ MonoBehaviour:
   teachers:
   - name: TANEIM
     rise:
-    - {fileID: 21300000, guid: 9fa8367010550254494a730a1b80d647, type: 3}
-    - {fileID: 21300000, guid: d8d46f47b6dd06840bc33df7268a7e8d, type: 3}
-    - {fileID: 21300000, guid: b3d2dce9281fbb741aeacda433a113b7, type: 3}
-    - {fileID: 21300000, guid: 0d14f57ba7250324eb683da0f1f8b1c2, type: 3}
-    - {fileID: 21300000, guid: 6faffab5e7a24dc4f88d5e1aa00454cf, type: 3}
-    - {fileID: 21300000, guid: 5f43fdb36302bd94b8055c348f35a936, type: 3}
-    - {fileID: 21300000, guid: 9aba00ce328f92344b597b917ccc2de1, type: 3}
+    - {fileID: 21300000, guid: fb6fc4989164ac544ad385e61e79dab3, type: 3}
+    - {fileID: 21300000, guid: 38da2abbd064a2a4188aeecbdbfd52bf, type: 3}
+    - {fileID: 21300000, guid: 622cee8c1c26d2044975ef8ae27dd61c, type: 3}
+    - {fileID: 21300000, guid: 48b38d075a7fbb942954840062904fdc, type: 3}
+    - {fileID: 21300000, guid: 88c747a7bafb13443b664d74ca9b4370, type: 3}
+    - {fileID: 21300000, guid: a46623f5fbb998d4eb125da19f572d3a, type: 3}
+    - {fileID: 21300000, guid: 87ff41625e11d5e47bcfe5345ef6302e, type: 3}
     duck:
-    - {fileID: 21300000, guid: ff3fa0bbcbf86814dbd6d4a6ef845257, type: 3}
-    - {fileID: 21300000, guid: 9d33a11136221764cbedc1c95bd623eb, type: 3}
-    - {fileID: 21300000, guid: 4ffb982dab0533245bef1bf5a3bf4765, type: 3}
-    - {fileID: 21300000, guid: f134c38047e09d94ba47586cd5e024d2, type: 3}
-    - {fileID: 21300000, guid: 997e5b4d9e7e2404cbf415db1873e33a, type: 3}
-    - {fileID: 21300000, guid: 1d33b0e19c492e641ad5fe3cc26afab8, type: 3}
-    - {fileID: 21300000, guid: 0a436c39c79a7914682300ece027fa1e, type: 3}
-    - {fileID: 21300000, guid: fd80cf426a2d148458b65a84a0818464, type: 3}
+    - {fileID: 21300000, guid: 5b10e1b18dfcd93419b5b7bbf34bb359, type: 3}
+    - {fileID: 21300000, guid: e459c658a624cd348967e653cf258d28, type: 3}
+    - {fileID: 21300000, guid: 8f5a57f9d7dfdcf43b0727ac3d8ee173, type: 3}
+    - {fileID: 21300000, guid: 41f26b0710f06fe47b5ebbfaa9a8bf7f, type: 3}
+    - {fileID: 21300000, guid: 30f566ee5aacf1d41ba84a7396297a0a, type: 3}
+    - {fileID: 21300000, guid: 0c273e48a4aa1594e81a6d7dd048e5c7, type: 3}
+    - {fileID: 21300000, guid: faddb33a7f87f764da73714fa041baee, type: 3}
+    - {fileID: 21300000, guid: 5bf8a4ba9d2d99b49a72c65b9f40b902, type: 3}
     still: {fileID: 21300000, guid: 9fa8367010550254494a730a1b80d647, type: 3}
     fps: 10
     rightSide: 0
+    peekAtRest: 0.31
   - name: Al
     rise: []
     duck: []
     still: {fileID: 21300000, guid: a4bd36b496734244190c5038dc5ef346, type: 3}
     fps: 12
     rightSide: 1
+    peekAtRest: 0.31
   teacherPixels: 260
   teacherInset: 24
   team:

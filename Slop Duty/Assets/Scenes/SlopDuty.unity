@@ -334,6 +334,8 @@ MonoBehaviour:
   startClock: 45
   clockCap: 60
   freezeOnGameOver: 1
+  shakeOnMistake: 0.14
+  shakeSeconds: 0.22
   devShortcuts: 1
   sundayOutOfStockKid: 3
 --- !u!4 &499705052
@@ -413,6 +415,7 @@ MonoBehaviour:
   sayMop: Wrong color. Click the *puddle* to mop it.
   sayDone: That's the job. Stay *as long as you like*.
   openDelay: 2.4
+  tooltipLift: 2.6
 --- !u!114 &499705055
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -442,7 +445,7 @@ MonoBehaviour:
     orders: 4
     seconds: 16
   - name: TANEIM
-    portrait: {fileID: 21300000, guid: 9aba00ce328f92344b597b917ccc2de1, type: 3}
+    portrait: {fileID: 21300000, guid: 5b10e1b18dfcd93419b5b7bbf34bb359, type: 3}
     boost: 4
     orders: 4
     seconds: 16

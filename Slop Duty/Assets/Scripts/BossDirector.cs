@@ -16,6 +16,10 @@ public class BossDirector : MonoBehaviour
         public string name = "";
         public Sprite portrait;
 
+        [Tooltip("Leave empty for one person. Fill it in and they turn up as a pair, both " +
+                 "standing there at once, each with their own order to fill.")]
+        public Sprite partner;
+
         [Tooltip("Which perk beating them is worth. Keep these distinct: two people handing " +
                  "out the same perk makes it not matter who turned up.")]
         public BoostKind boost = BoostKind.BigTips;
@@ -37,7 +41,15 @@ public class BossDirector : MonoBehaviour
         new Contender { name = "JOHN",    boost = BoostKind.CleanFloor },
         new Contender { name = "TANEIM",  boost = BoostKind.Forgiving },
         new Contender { name = "AL",      boost = BoostKind.AutoSorter },
+
+        // The TAs, and the only pair. Six orders rather than four because two of them ask
+        // at once, so the same number would be over in half the time.
+        new Contender { name = "JOY & LUCAS", boost = BoostKind.ExtraHands, orders = 6, seconds = 20f },
     };
+
+    [Tooltip("How far apart a pair stands, in world units. They are centred on the same spot " +
+             "a lone boss would use, so this splits them either side of it.")]
+    [SerializeField] private float duoSpread = 2.6f;
 
     [Header("When")]
     [Tooltip("First week that can get a visit. Week 1 is left alone so the run has a chance " +
@@ -245,9 +257,14 @@ public class BossDirector : MonoBehaviour
         active = go.AddComponent<BossVisitor>();
         active.Ended += OnEnded;
 
-        active.Begin(who.portrait, bubbleArt, who.name, who.boost, who.orders,
+        // One portrait or two. Everything past this point treats them the same way.
+        Sprite[] cast = who.partner != null
+            ? new[] { who.portrait, who.partner }
+            : new[] { who.portrait };
+
+        active.Begin(cast, bubbleArt, who.name, who.boost, who.orders,
                      who.seconds, stand, dropHeight, shakeAmount, shakeSeconds, bossScale,
-                     secondsPerOrder);
+                     secondsPerOrder, duoSpread);
     }
 
     // Centre of the line rather than the front slot. The front slot is off to one side, and

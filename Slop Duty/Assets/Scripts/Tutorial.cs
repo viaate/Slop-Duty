@@ -99,6 +99,10 @@ public class Tutorial : MonoBehaviour
              "collide with the day card.")]
     [SerializeField] private float openDelay = 2.4f;
 
+    [Tooltip("How far above the row of pans a tooltip sits, in world units. Raise it if a " +
+             "bubble still overlaps the colors it is asking you to compare.")]
+    [SerializeField] private float tooltipLift = 2.6f;
+
     private enum Step
     {
         Waiting,       // shift has not begun
@@ -127,6 +131,9 @@ public class Tutorial : MonoBehaviour
     private int emphasisCursor;
     private float shownFor;
     private string queued;
+    private Vector3? queuedAt;
+    private Vector3? anchorAt;
+    private Vector2 lastCanvasSize;
 
     private void Awake() => BuildCanvas();
 
@@ -186,7 +193,7 @@ public class Tutorial : MonoBehaviour
         if (!correct && !taughtMopping)
         {
             taughtMopping = true;
-            Say(sayMop);
+            SayAt(sayMop, MessPoint());
 
             // The step is deliberately not advanced, so whatever was being taught is still
             // the current lesson and the next kid of that kind still counts toward it. This
@@ -208,10 +215,20 @@ public class Tutorial : MonoBehaviour
 
         // The pans can be relaid out when a palette regenerates, so the parking spot is
         // recomputed rather than cached.
-        if (bubble != null) Reposition();
+        // Only recomputed when the window changes shape.
+        //
+        // The spot a tooltip parks in does not move otherwise: the pans are only relaid out
+        // when a palette regenerates, and that happens on a day change, which dismisses the
+        // bubble anyway. Doing it every frame meant a WorldToScreenPoint, a rectangle
+        // conversion and a canvas write, all to arrive at last frame's answer.
+        if (bubble != null && canvasRect != null && canvasRect.rect.size != lastCanvasSize)
+        {
+            lastCanvasSize = canvasRect.rect.size;
+            Reposition();
+        }
 
         // Whatever was held back while the last line served its minimum.
-        if (queued != null && shownFor >= minShowSeconds) Show(queued);
+        if (queued != null && shownFor >= minShowSeconds) Show(queued, queuedAt);
 
         switch (step)
         {
@@ -295,20 +312,28 @@ public class Tutorial : MonoBehaviour
     // past before anybody could read it. Queueing means the newer line still wins, it just
     // waits its turn. Only one is ever held, so a burst collapses to the last thing said
     // rather than making the player sit through a backlog.
-    private void Say(string text)
+    private void Say(string text) => SayAt(text, null);
+
+    // at is where to park it, or null for the usual spot in the middle of the counter.
+    private void SayAt(string text, Vector3? at)
     {
         if (bubble != null && shownFor < minShowSeconds)
         {
             queued = text;
+            queuedAt = at;
             return;
         }
 
-        Show(text);
+        Show(text, at);
     }
 
-    private void Show(string text)
+    private void Show(string text, Vector3? at)
     {
+        // Dismiss FIRST, then set the anchor. Dismiss clears it as part of tearing down the
+        // last bubble, so setting it beforehand would wipe it a line later and every tooltip
+        // would fall back to the default spot no matter what it asked for.
         Dismiss();
+        anchorAt = at;
 
         SpeechBubble.Style style = WidestStyle();
         if (style == null) return;
@@ -337,7 +362,7 @@ public class Tutorial : MonoBehaviour
     {
         if (bubble == null || canvasRect == null) return;
 
-        bubble.PlaceOn(ToCanvas(CounterCentre()), canvasRect.rect.size);
+        bubble.PlaceOn(ToCanvas(anchorAt ?? CounterCentre()), canvasRect.rect.size);
     }
 
     // Always the widest bubble on the list, never a rotation through them.
@@ -378,6 +403,8 @@ public class Tutorial : MonoBehaviour
     // between them is wide open. Every other spot is taken: kids fill the upper half, each
     // of them carries a thought bubble showing what they want, and that bubble is the one
     // thing the player has to be able to read.
+    // The middle of the row of pans, where tooltips sit by default. Only the mess note
+    // moves off it, and it does that by asking for MessPoint instead.
     private Vector3 CounterCentre()
     {
         if (slop == null) return Vector3.zero;
@@ -398,6 +425,20 @@ public class Tutorial : MonoBehaviour
         return found > 0 ? sum / found : Vector3.zero;
     }
 
+    // Where the mess note goes, and ONLY the mess note.
+    //
+    // It is the one tooltip that appears while the counter is full, and parked on the pan
+    // row it lay straight across the colors. Every other line shows during Sunday's opening,
+    // when the counter is two pans at opposite ends and the middle is empty, so lifting
+    // those as well just floated them up onto the brick for no reason.
+    private Vector3 MessPoint()
+    {
+        Vector3 at = CounterCentre();
+        at.y += tooltipLift;
+
+        return at;
+    }
+
     // The game's own font unless somebody deliberately overrode it. Looked up rather than
     // required, because an empty font slot silently falls back to Unity's default sans and
     // the tooltip ends up as the only thing on screen that is not pixel art.
@@ -414,6 +455,9 @@ public class Tutorial : MonoBehaviour
         if (bubble != null) bubble.Close();
 
         bubble = null;
+        anchorAt = null;
+        queued = null;
+        queuedAt = null;
     }
 
     private Vector2 ToCanvas(Vector3 world)

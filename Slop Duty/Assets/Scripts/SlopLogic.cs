@@ -231,6 +231,16 @@ public class SlopLogic : MonoBehaviour
         // one of those would count as "we're out", and the game would be unplayable.
         activeCount = Mathf.Clamp(count, 1, Mathf.Max(1, Mathf.Min(slopObjects.Count, maxPans)));
 
+        // Selena's perk comes off AFTER that clamp, which is the entire reason it lives here
+        // rather than in the day's numbers. The day asks for up to ten colors and the counter
+        // has eight pans, so taking one off the request beforehand was taking it off a number
+        // that was about to be thrown away.
+        //
+        // Floored at two. One color on the counter is not an easier game, it is a game with
+        // nothing left to get wrong.
+        int relief = GameManager.Instance != null ? WeekBoost.FewerColors(GameManager.Instance.Day) : 0;
+        activeCount = Mathf.Max(2, activeCount - relief);
+
         colors.Clear();
         wheelOffset = Random.value;
 

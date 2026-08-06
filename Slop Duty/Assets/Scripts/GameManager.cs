@@ -31,6 +31,13 @@ public class GameManager : MonoBehaviour
 
     [SerializeField] private bool freezeOnGameOver = true;
 
+    [Header("Feel")]
+    [Tooltip("How hard the camera knocks on a wrong serve or a walk out, in world units. " +
+             "Subtle on purpose: 0 switches it off entirely.")]
+    [SerializeField, Range(0f, 0.6f)] private float shakeOnMistake = 0.14f;
+
+    [SerializeField, Range(0.05f, 0.8f)] private float shakeSeconds = 0.22f;
+
     // Guarded the same way the handler is, so a release build has neither the field nor a
     // compiler warning about a setting nothing reads.
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -173,6 +180,7 @@ public class GameManager : MonoBehaviour
         if (RunOver) return;
 
         Stats.wrongColor++;
+        Knock();
         Bank(timer != null ? timer.SubtractTime(Today.penalty) : 0f, where);
 
         if (puke != null)
@@ -189,6 +197,7 @@ public class GameManager : MonoBehaviour
         if (RunOver) return;
 
         Stats.walkedOut++;
+        Knock();
         Bank(timer != null ? timer.SubtractTime(Today.penalty) : 0f, where);
 
         if (puke != null)
@@ -244,6 +253,18 @@ public class GameManager : MonoBehaviour
     // clock already at maxTime a correct serve genuinely banks nothing, and announcing a
     // reward that did not happen would teach the player the wrong thing about when to
     // stop hoarding.
+    // A short knock on anything that costs the player time.
+    //
+    // Deliberately small. This fires on every mistake, and a mistake is already announced by
+    // a red number, a falling clock and somebody being sick on the floor: the shake is the
+    // fourth voice in that chorus, so it only has to add weight, not carry the message. Big
+    // enough to feel and small enough not to be read as an effect.
+    private void Knock()
+    {
+        if (shakeOnMistake <= 0f) return;
+        CameraShake.Shake(shakeOnMistake, shakeSeconds);
+    }
+
     private void Bank(float delta, Vector2 where)
     {
         if (Mathf.Approximately(delta, 0f) && !ClockFull) return;
