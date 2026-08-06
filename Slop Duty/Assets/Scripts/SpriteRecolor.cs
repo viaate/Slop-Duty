@@ -61,7 +61,7 @@ public static class SpriteRecolor
             return null;
         }
 
-        Color.RGBToHSV(target, out float targetHue, out float targetSat, out _);
+        Color.RGBToHSV(target, out float targetHue, out float targetSat, out float targetVal);
 
         // source.rect, not source.textureRect. On a Tight mesh sprite textureRect can
         // shrink to hug the opaque pixels, and rebuilding from that puts the pivot on the
@@ -76,6 +76,20 @@ public static class SpriteRecolor
 
         Color[] pixels = src.GetPixels(x, y, w, h);
 
+        // Brightest pixel in the source, found first so the whole sprite can be rescaled
+        // against it below.
+        float brightest = 0f;
+
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            if (pixels[i].a <= 0f) continue;
+
+            Color.RGBToHSV(pixels[i], out _, out _, out float v);
+            if (v > brightest) brightest = v;
+        }
+
+        if (brightest <= 0.001f) brightest = 1f;
+
         for (int i = 0; i < pixels.Length; i++)
         {
             Color p = pixels[i];
@@ -87,7 +101,20 @@ public static class SpriteRecolor
             // low saturation, so they do not turn into flat blocks of the new color.
             float sat = pixelSat <= 0.08f ? pixelSat : targetSat;
 
-            Color rebuilt = Color.HSVToRGB(targetHue, sat, pixelVal);
+            // Brightness is rescaled so the sprite's brightest pixel lands exactly on the
+            // target's brightness and everything else follows in proportion. Shading and
+            // relative contrast survive, but the slop as a whole is now as light or dark
+            // as the palette asked for.
+            //
+            // This line used to be `pixelVal`, which silently discarded the target's
+            // brightness entirely. Every slop then rendered with the identical brightness
+            // profile of the source art and differed only in hue, so two greens looked the
+            // same and a decoy that had escaped by going dark came out looking like a real
+            // pan. Lightness is roughly half of what makes two colors tell apart, and none
+            // of it was reaching the screen.
+            float value = Mathf.Clamp01(pixelVal / brightest * targetVal);
+
+            Color rebuilt = Color.HSVToRGB(targetHue, sat, value);
             rebuilt.a = p.a;
             pixels[i] = rebuilt;
         }

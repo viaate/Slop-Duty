@@ -81,6 +81,20 @@ public class MenuUI : MonoBehaviour
              "those particular kids are on the title screen.")]
     [SerializeField] private string teamCaption = "MADE BY";
 
+    // Matches the CanvasScaler reference resolution below. Needed because the team block
+    // is positioned from the bottom edge and the buttons from the top, so one of them has
+    // to be converted to compare them.
+    private const float RefHeight = 1080f;
+
+    private const float TaglineBottom = 366f;   // tagline sits at 330 and is 36 tall
+    private const float ButtonHeight = 84f;
+    private const float ButtonGap = 6f;
+    private const float CaptionHeight = 30f;
+
+    // Top edge of the whole team block, measured up from the bottom of the screen.
+    private float TeamBlockTop =>
+        teamRowY + portraitPixels + 14f + (string.IsNullOrEmpty(teamCaption) ? 0f : CaptionHeight);
+
     private RectTransform titleRect;
     private bool leaving;
 
@@ -266,13 +280,32 @@ public class MenuUI : MonoBehaviour
         tagline.Text = "MATCH THE COLOR AND MOVE FAST.";
 
         // Pulled up from -470/-570/-670 to clear the bigger portrait row and its caption.
-        MakeButton("Play", content, "START SHIFT", new Vector2(0f, -400f), new Vector2(460f, 84f))
+        // The two shift buttons are the decision the player is here to make, so they own
+        // the centre. Identical size on purpose: they are equal choices, not a primary
+        // and a fallback.
+        //
+        // Their position is computed rather than typed, so the pair stays centred in the
+        // space between the tagline and the team block. Change Team Row Y or the portrait
+        // size and the buttons re-centre themselves instead of drifting out of balance.
+        float gapTop = TaglineBottom;
+        float gapBottom = RefHeight - TeamBlockTop;
+        float blockHeight = (ButtonHeight * 2f) + ButtonGap;
+
+        float firstY = gapTop + (((gapBottom - gapTop) - blockHeight) * 0.5f);
+        float secondY = firstY + ButtonHeight + ButtonGap;
+
+        MakeButton("Play", content, "START SHIFT", new Vector2(0f, -firstY), new Vector2(460f, ButtonHeight),
+                   new Vector2(0.5f, 1f), 30)
             .onClick.AddListener(StartShift);
 
-        MakeButton("Training", content, "TRAINING SHIFT", new Vector2(0f, -490f), new Vector2(460f, 84f))
+        MakeButton("Training", content, "TRAINING SHIFT", new Vector2(0f, -secondY), new Vector2(460f, ButtonHeight),
+                   new Vector2(0.5f, 1f), 30)
             .onClick.AddListener(StartTraining);
 
-        MakeButton("Board", content, "LEADERBOARD", new Vector2(0f, -580f), new Vector2(460f, 84f))
+        // Tucked into the top right corner. It is somewhere to go rather than something to
+        // do, so it should not sit in the same column as the two things that start a game.
+        MakeButton("Board", content, "LEADERBOARD", new Vector2(-32f, -32f), new Vector2(300f, 64f),
+                   new Vector2(1f, 1f), 24)
             .onClick.AddListener(ToggleBoard);
 
         BuildTeam(content);
@@ -298,7 +331,7 @@ public class MenuUI : MonoBehaviour
             PixelText caption = MakeText("Team Caption", parent, 22, TextAlignmentOptions.Bottom, inkDim,
                                          new Vector2(0.5f, 0f),
                                          new Vector2(0f, teamRowY + portraitPixels + 14f),
-                                         new Vector2(900f, 30f));
+                                         new Vector2(900f, CaptionHeight));
             caption.Text = teamCaption;
         }
 
@@ -395,7 +428,8 @@ public class MenuUI : MonoBehaviour
         boardStatus = MakeText("Status", panel, 26, TextAlignmentOptions.Top, inkDim,
                                new Vector2(0.5f, 1f), new Vector2(0f, -340f), new Vector2(1200f, 40f));
 
-        MakeButton("Back", panel, "BACK", new Vector2(0f, -880f), new Vector2(320f, 76f))
+        MakeButton("Back", panel, "BACK", new Vector2(0f, -880f), new Vector2(320f, 76f),
+                   new Vector2(0.5f, 1f), 30)
             .onClick.AddListener(ToggleBoard);
 
         boardPanel.SetActive(false);
@@ -465,8 +499,10 @@ public class MenuUI : MonoBehaviour
     // being permanently highlighted. Transition is forced to None because Unity's own
     // ColorBlock only tints the background Image, so the label would stay dim while the
     // box behind it brightened. HoverTint moves both together.
+    // anchor lets a button hang off a corner rather than off the top centre, which is what
+    // the leaderboard needs now that it lives in the top right.
     private Button MakeButton(string name, RectTransform parent, string label,
-                              Vector2 position, Vector2 size)
+                              Vector2 position, Vector2 size, Vector2 anchor, int fontSize)
     {
         GameObject go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
@@ -477,9 +513,9 @@ public class MenuUI : MonoBehaviour
         b.targetGraphic = img;
         b.transition = Selectable.Transition.None;
 
-        Anchor(go.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), position, size);
+        Anchor(go.GetComponent<RectTransform>(), anchor, position, size);
 
-        PixelText text = MakeText(name + " Text", go.GetComponent<RectTransform>(), 30,
+        PixelText text = MakeText(name + " Text", go.GetComponent<RectTransform>(), fontSize,
                                   TextAlignmentOptions.Center, inkDim,
                                   new Vector2(0.5f, 0.5f), Vector2.zero, size);
         text.Text = label;

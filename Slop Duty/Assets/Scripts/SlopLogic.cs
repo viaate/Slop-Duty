@@ -146,9 +146,26 @@ public class SlopLogic : MonoBehaviour
     private List<Color> colors = new List<Color>();
     private List<Slop> slopObjects = new List<Slop>();
 
+    // The band every slop lives in, pans and decoys alike. Shared so the two can never
+    // drift apart: a decoy drawn from a different range than the pans is identifiable on
+    // sight, which defeats the entire point of it.
+    private const float SatMin = 0.55f;
+    private const float SatMax = 0.95f;
+    private const float ValMin = 0.65f;
+    private const float ValMax = 1.00f;
+
+    // Below this two slops stop being tellable apart at a glance. minColorGap is what the
+    // generator aims for; this is where a palette is actually broken.
+    private const float ReadableFloor = 0.12f;
+
+    private static readonly HashSet<int> warnedCounts = new HashSet<int>();
+
     private Slop selectedSlop;
     private int activeCount;
     private float wheelOffset;
+
+    private static Color RandomSlopColor(float hue) =>
+        Color.HSVToRGB(hue, Random.Range(SatMin, SatMax), Random.Range(ValMin, ValMax));
 
     // How many pans are currently switched on. This is the brief's third difficulty
     // lever, and it is capped by how many SlopType objects exist in the scene.
@@ -222,13 +239,23 @@ public class SlopLogic : MonoBehaviour
 
         Repair();
 
-        // Warns rather than silently shipping a bad palette. Asking for a large gap with
-        // many pans is over-constrained: ten pans cannot all sit 0.25 apart on a wheel.
-        if (ClosestPair(out _, out _, out float achieved) && achieved < minColorGap)
+        // Warns rather than silently shipping a palette nobody can read.
+        //
+        // Deliberately not triggered by merely missing minColorGap. That target is
+        // unreachable by definition once the counter fills up: eight hues cannot all sit
+        // 0.17 apart on a wheel, and measured over 200 runs eight pans land a median of
+        // 0.169. Warning on the target itself meant a warning on about half of all late
+        // days, which reads as a bug every time you look at the console.
+        //
+        // ReadableFloor is the point where two pans genuinely start looking alike, and it
+        // is only reached when something is actually misconfigured. Once per pan count, so
+        // a bad setting is still visible without repeating every day.
+        if (ClosestPair(out _, out _, out float achieved) && achieved < ReadableFloor
+            && warnedCounts.Add(activeCount))
         {
-            Debug.LogWarning($"{name}: could only reach a color gap of {achieved:0.000} " +
-                             $"with {activeCount} pans, wanted {minColorGap:0.000}. " +
-                             "Lower Min Color Gap or use fewer pans.", this);
+            Debug.LogWarning($"{name}: only reached a color gap of {achieved:0.000} with " +
+                             $"{activeCount} pans, which is close enough that two of them " +
+                             "will look alike. Use fewer pans.", this);
         }
 
         ApplyToCounter();
@@ -265,9 +292,12 @@ public class SlopLogic : MonoBehaviour
         float jitter = Random.Range(-0.25f, 0.25f) / activeCount;
         float hue = Mathf.Repeat(wheelOffset + (index / (float)activeCount) + jitter, 1f);
 
-        // Lightness roams a wide band on purpose, so neighbouring hues can separate on
-        // brightness when the wheel itself is crowded.
-        return Color.HSVToRGB(hue, Random.Range(0.55f, 0.95f), Random.Range(0.45f, 0.90f));
+        // Lightness varies within the shared band so neighbouring hues can separate on
+        // brightness as well as colour. The floor is deliberately not lower: the renderer
+        // multiplies this by the sprite's own shading, which bottoms out around 0.69, so a
+        // target of 0.65 already lands near 0.45 on screen and anything under that reads
+        // as mud rather than as food.
+        return RandomSlopColor(hue);
     }
 
     private float NearestGap(Color candidate)
@@ -419,9 +449,20 @@ public class SlopLogic : MonoBehaviour
         Color best = Color.white;
         float bestGap = -1f;
 
-        for (int attempt = 0; attempt < 64; attempt++)
+        // Drawn from exactly the same band as the pans, and simply tried many more times.
+        //
+        // An earlier version let decoys roam a much wider range of saturation and
+        // brightness so they could escape a crowded hue wheel along another axis. It
+        // worked far too well: going dark is the cheapest way to be far from everything,
+        // so decoys came out near-black nearly every time and became identifiable at a
+        // glance. A decoy you can spot without reading its colour is not a decoy.
+        //
+        // The honest consequence is that on a crowded counter a decoy genuinely cannot be
+        // both plausible and obviously distinct. That is difficulty, not a defect. If late
+        // days feel unfair, lower Max Pans rather than widening this.
+        for (int attempt = 0; attempt < 160; attempt++)
         {
-            Color candidate = Color.HSVToRGB(Random.value, Random.Range(0.55f, 0.95f), Random.Range(0.45f, 0.90f));
+            Color candidate = RandomSlopColor(Random.value);
             float gap = NearestGap(candidate);
 
             if (gap > bestGap)
