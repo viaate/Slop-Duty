@@ -20,6 +20,7 @@ public class CockroachBehavior : MonoBehaviour
          * //puke.AddMess() ;
          * Destroy(gameObject) ;
          * }
+         * */
     }
     
     
