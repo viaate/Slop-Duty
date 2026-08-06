@@ -4,7 +4,8 @@ using UnityEngine;
 
 public class CockroachBehavior : MonoBehaviour
 {
-    // Start is called before the first frame update
+    // Start is called before the first frame update\
+    //[SerializeField] private PukeManager puke;
     void Start()
     {
         
@@ -13,6 +14,14 @@ public class CockroachBehavior : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        
+        /*
+         * if(transform.position.y > -40)
+         * {
+         * //puke.AddMess() ;
+         * Destroy(gameObject) ;
+         * }
+         * */
     }
+    
+    
 }
