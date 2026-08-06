@@ -19,6 +19,12 @@ public class HoverTint : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
     [SerializeField, Range(0f, 1f)] private float idleFillAlpha = 0.14f;
     [SerializeField, Range(0f, 1f)] private float hoverFillAlpha = 0.30f;
 
+    // So a caller can re-run Setup with a different idle color without having to hold on
+    // to the pieces itself. Used for buttons that are also a choice, where the selected one
+    // has to stay lit rather than only lighting under the pointer.
+    public Image Fill => fill;
+    public TextMeshProUGUI Label => label;
+
     public void Setup(Image background, TextMeshProUGUI text, Color idle, Color hover)
     {
         fill = background;

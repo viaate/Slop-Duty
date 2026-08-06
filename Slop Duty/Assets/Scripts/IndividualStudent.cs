@@ -43,6 +43,17 @@ public class IndividualStudent : MonoBehaviour
     // 1 on arrival, 0 when they give up. Drive a patience bar off this.
     public float PatienceNormalized => patienceTotal <= 0f ? 1f : Mathf.Clamp01(patienceLeft / patienceTotal);
 
+    private static bool Endless => GameManager.Instance != null
+                                   && GameManager.Instance.Today.endlessPatience;
+
+    // Both read by the Sunday tutorial, which has to wait for a kid to actually reach the
+    // counter before pointing at them, and has to know which kind of kid they are before
+    // deciding what to say.
+    public bool Waiting => waiting;
+
+    public bool WantsSomethingMissing => SlopLogic.Instance != null
+                                         && !SlopLogic.Instance.IsOnCounter(assignedColor);
+
     public bool IsResolved => resolved;
 
     private void Awake()
@@ -70,6 +81,12 @@ public class IndividualStudent : MonoBehaviour
     private void ShowRequest()
     {
         if (studentSpriteRenderer == null) return;
+
+        // The same shape that is on the pan they want, so the two can be matched without
+        // reading either color. A kid wanting something the counter has not got still gets
+        // a shape, just not one of the shapes out there. See SlopLogic.SymbolFor.
+        SlopLogic logic = SlopLogic.Instance;
+        SymbolBadge.Apply(studentSpriteRenderer, logic != null ? logic.SymbolFor(assignedColor) : -1, 0.34f);
 
         // Repainting beats tinting here for the same reason it does on the pans: tinting
         // multiplies, so a red source blob can never become blue. Repainting also means
@@ -111,7 +128,11 @@ public class IndividualStudent : MonoBehaviour
         // Patience only runs once they have reached the counter, but clicks are accepted
         // from the moment they exist, so a kid can be served while still walking in.
         // Serving early is a small skill reward: you buy back the walk time.
-        if (waiting)
+        // Sunday freezes the countdown outright rather than setting a very large patience.
+        // A big number still ends, and the whole promise of the training shift is that it
+        // does not: you can read a tooltip, go and make a drink, and come back to the same
+        // kid still waiting.
+        if (waiting && !Endless)
         {
             patienceLeft -= Time.deltaTime;
 
@@ -182,13 +203,17 @@ public class IndividualStudent : MonoBehaviour
         SlopLogic logic = SlopLogic.Instance;
         if (logic == null || logic.GetColorCount() == 0) return Color.gray;
 
-        float outChance = GameManager.Instance != null
-            ? GameManager.Instance.OutOfStockChance
-            : 0.12f;
+        // A small share of kids want something that is not on the counter at all. For them
+        // the only correct answer is the sorry-we're-out button.
+        //
+        // The decision is asked for rather than rolled here, because on Sunday it is not a
+        // roll: the training shift deals a fixed hand so the player is guaranteed to meet
+        // this case instead of possibly finishing the day never having seen it.
+        bool missing = GameManager.Instance != null
+            ? GameManager.Instance.NextRequestIsOutOfStock()
+            : Random.value < 0.12f;
 
-        // A small share of kids want something that is not on the counter at all.
-        // For them the only correct answer is the sorry-we're-out button.
-        if (Random.value < outChance) return logic.GetOffPaletteColor();
+        if (missing) return logic.GetOffPaletteColor();
 
         return logic.GetColor(Random.Range(0, logic.GetColorCount()));
     }

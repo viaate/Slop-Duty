@@ -10,6 +10,9 @@ public struct DayConfig
     public float penalty;
     public int quota;        // kids to resolve before the day rolls over
 
+    // Kids never run out of patience and never walk off. Sunday only.
+    public bool endlessPatience;
+
     // Difficulty moves on three levers only, exactly as the brief says: how fast kids
     // arrive, how long they wait, and how many colors are on the counter.
     //
@@ -71,14 +74,23 @@ public struct DayConfig
         return ((day - 1) / Weekdays.Length) + 1;
     }
 
-    // The tutorial shift. No clock, generous patience, two colors.
+    // The tutorial shift. No clock, no patience, two colors.
+    //
+    // Sunday cannot be failed and cannot time out. GameManager never starts the clock on
+    // day 0, and endlessPatience stops the countdown over each kid's head, so the shift
+    // sits there indefinitely: you can read every tooltip twice, walk away, come back, and
+    // nothing will have moved. The only way off Sunday is serving the quota, which is a
+    // choice the player makes rather than one the clock makes for them.
     public static readonly DayConfig Sunday = new DayConfig
     {
         arrivalInterval = 4.5f,
 
-        // Left long on purpose. Sunday is where people work out what the bubble means,
-        // and nobody should be timing out while reading the screen.
+        // Never actually counts down, see endlessPatience. Kept as a real number so the
+        // bar over their head has something sane to draw and so anything reading patience
+        // for other reasons does not have to special case day 0.
         patience = 20f,
+        endlessPatience = true,
+
         slopColors = 2,
         reward = 0f,
         penalty = 0f,

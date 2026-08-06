@@ -369,6 +369,11 @@ public class SlopLogic : MonoBehaviour
             if (autoLayout) s.transform.position = PanPosition(i, activeCount);
 
             s.SetColor(GetColor(i));
+
+            // Handed the loop index rather than looked up from the color, because the
+            // colors are still being written as this loop runs: asking "which pan is this
+            // color" halfway through would consult a counter that is only half painted.
+            s.ShowSymbol(Settings.UseSymbols ? i : -1);
         }
 
         // A new day repaints every pan, so any held scoop is now the wrong color.
@@ -435,6 +440,36 @@ public class SlopLogic : MonoBehaviour
         return false;
     }
 
+    // Which pixel shape belongs to a color, or -1 when shapes are switched off.
+    //
+    // Colors on the counter get their own pan's index, so a shape on a pan and the same
+    // shape in a kid's thought bubble mean the same slop.
+    //
+    // A color that is NOT on the counter still gets a shape, taken from the pool beyond the
+    // pans in use. That matters more than it looks: leave a decoy with no badge at all and
+    // the empty bubble answers the question before the player has compared anything, which
+    // turns the one case the sorry-we're-out button exists for into a freebie. This way the
+    // decoy has a shape like everyone else, and it simply is not one of the shapes on the
+    // counter, which is the same job the colors were doing.
+    public int SymbolFor(Color wanted)
+    {
+        if (!Settings.UseSymbols) return -1;
+
+        for (int i = 0; i < slopObjects.Count && i < activeCount; i++)
+        {
+            if (slopObjects[i] == null) continue;
+            if (slopObjects[i].GetColor() == wanted) return i;
+        }
+
+        int spare = Mathf.Max(1, SlopSymbols.Count - activeCount);
+
+        // Derived from the color itself rather than rolled, so the same kid keeps the same
+        // shape for as long as they are standing there.
+        int hash = Mathf.Abs(wanted.GetHashCode());
+
+        return activeCount + (hash % spare);
+    }
+
     // A color deliberately unlike anything on the counter, for the "sorry we're out" case.
     //
     // Held to a higher bar than the pans are held to each other, because a decoy that is
@@ -499,6 +534,18 @@ public class SlopLogic : MonoBehaviour
 
     private static void ToOkLab(Color c, out float lightness, out float greenRed, out float blueYellow)
     {
+        // Measured as the PLAYER sees it, not as the screen emits it.
+        //
+        // Everything that decides whether two slops are far enough apart runs through here:
+        // the best-of-48 search, the repair pass, and the bar a decoy has to clear. Putting
+        // the simulation at this one point means all of it starts avoiding pairs that this
+        // particular pair of eyes cannot separate, with no other change anywhere.
+        //
+        // The blunt alternative, banning red or banning green, would have been worse on
+        // both counts: which hues collide depends on the type, and a hue that is fine on
+        // its own can still collide with one specific neighbour. Measuring beats guessing.
+        c = Colorblind.Simulate(c, Settings.Vision);
+
         float r = ToLinear(c.r);
         float g = ToLinear(c.g);
         float bl = ToLinear(c.b);

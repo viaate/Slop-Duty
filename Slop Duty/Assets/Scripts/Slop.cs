@@ -95,6 +95,10 @@ public class Slop : MonoBehaviour
         slopSpriteRenderer.color = newColor;
     }
 
+    // The pixel shape marking this pan when the player has said they cannot rely on color.
+    // Below zero hides it. Driven by SlopLogic, which knows which pan this is.
+    public void ShowSymbol(int symbol) => SymbolBadge.Apply(slopSpriteRenderer, symbol, 0.34f);
+
     public bool GetIsSelected() => isSelected;
 
     public void SetIsSelected(bool selected)

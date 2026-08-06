@@ -1,0 +1,397 @@
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+// The Sunday training shift, told through speech bubbles parked in the middle of the
+// counter.
+//
+// Runs on day 0 only and does nothing on any other day. Sunday cannot be lost: there is no
+// clock, and DayConfig.Sunday sets endlessPatience so nobody ever walks off. That is what
+// makes a tutorial possible at all, because it means a bubble can sit on screen for as
+// long as somebody wants to read it.
+//
+// The beats are driven by watching the game rather than by a timer. A tooltip that says
+// "click a pan" while the player has already clicked one is worse than no tooltip, so each
+// step waits for the thing it is describing to actually be true.
+public class Tutorial : MonoBehaviour
+{
+    [Header("Bubble art")]
+    [Tooltip("Assign the -alt sprites, the ones with no tail. Only the alt art is a closed " +
+             "shape: the tailed versions have their bottom row broken open where the tail " +
+             "joins. The widest one gets used for every tooltip, so listing all three is " +
+             "fine and the narrow ones simply sit unused.")]
+    [SerializeField] private SpeechBubble.Style[] styles = new SpeechBubble.Style[1];
+
+    [Header("Text")]
+    [Tooltip("Leave empty and it borrows the font off GameUI, which is almost always what " +
+             "you want. Only fill this in to give tooltips a different face on purpose.")]
+    [SerializeField] private TMP_FontAsset pixelFont;
+
+    [SerializeField] private Color textColor = new Color(0.129f, 0.121f, 0.098f);
+
+    [Tooltip("Point size of the writing. Smaller text means a smaller bubble too, since " +
+             "the bubble is only ever as big as the words need.")]
+    [SerializeField] private int textPointSize = 28;
+
+    [Tooltip("Widest a bubble may get before the writing wraps, in 1080p reference pixels.")]
+    [SerializeField] private float bubbleMaxWidth = 900f;
+
+    [Tooltip("Extra room around the writing, in whole scale steps. 0 is the tightest fit " +
+             "the text allows. Each step grows the bubble only, never the text, and stays " +
+             "on whole pixels so it cannot go soft.")]
+    [SerializeField, Range(0, 6)] private int bubbleRoom = 1;
+
+    // Short on purpose. The bubble is scaled whole, so it can only grow to fit the writing,
+    // never reshape around it: every extra clause makes the bubble physically bigger until
+    // it is covering the counter it is trying to explain. One idea per bubble.
+    [Header("Wording")]
+    [SerializeField, TextArea(2, 3)] private string lineWelcome =
+        "Sunday. Nobody's in. Good day to learn.";
+
+    [SerializeField, TextArea(2, 3)] private string linePans =
+        "Click a pan to load that color.";
+
+    [SerializeField, TextArea(2, 3)] private string lineServe =
+        "Match their color, then click them.";
+
+    [SerializeField, TextArea(2, 3)] private string lineLadle =
+        "The ladle keeps its color. Serve a whole run.";
+
+    [SerializeField, TextArea(2, 3)] private string lineOutOfStock =
+        "You don't have this one. Hit WE'RE OUT.";
+
+    [SerializeField, TextArea(2, 3)] private string lineMop =
+        "Wrong color. Click the puddle to mop it.";
+
+    [SerializeField, TextArea(2, 3)] private string lineDone =
+        "That's the job. Stay as long as you like.";
+
+    [Tooltip("Seconds after the shift begins before the first bubble, so it does not " +
+             "collide with the day card.")]
+    [SerializeField] private float openDelay = 2.4f;
+
+    private enum Step
+    {
+        Waiting,       // shift has not begun
+        Welcome,
+        Pans,
+        Serve,
+        Ladle,
+        OutOfStock,
+        Done,
+        Off,           // any day but Sunday
+    }
+
+    private GameManager game;
+    private StudentQueue queue;
+    private SlopLogic slop;
+    private Camera worldCam;
+
+    private Canvas canvas;
+    private RectTransform canvasRect;
+    private SpeechBubble bubble;
+
+    private Step step = Step.Waiting;
+    private float clock;
+    private bool taughtMopping;
+
+    private void Awake() => BuildCanvas();
+
+    private void Start()
+    {
+        game = GameManager.Instance;
+        if (game == null) game = FindFirstObjectByType<GameManager>();
+
+        queue = FindFirstObjectByType<StudentQueue>();
+        slop = SlopLogic.Instance;
+        if (slop == null) slop = FindFirstObjectByType<SlopLogic>();
+
+        if (game == null)
+        {
+            step = Step.Off;
+            return;
+        }
+
+        game.DayStarted += OnDayStarted;
+        game.StudentResolved += OnStudentResolved;
+
+        OnDayStarted(game.Day);
+    }
+
+    private void OnDestroy()
+    {
+        if (game == null) return;
+
+        game.DayStarted -= OnDayStarted;
+        game.StudentResolved -= OnStudentResolved;
+    }
+
+    private void OnDayStarted(int day)
+    {
+        Dismiss();
+
+        // Monday onwards the tutorial is simply gone. Nothing is disabled or hidden, there
+        // is just no step left that does anything.
+        if (day != 0)
+        {
+            step = Step.Off;
+            return;
+        }
+
+        step = Step.Waiting;
+        clock = 0f;
+        taughtMopping = false;
+    }
+
+    private void OnStudentResolved(bool correct)
+    {
+        if (step == Step.Off) return;
+
+        // Reactive, and deliberately allowed to interrupt whatever else is on screen. A
+        // player who has just made a mess is looking at the mess, and this is the only
+        // moment where explaining it will land.
+        if (!correct && !taughtMopping)
+        {
+            taughtMopping = true;
+            Say(lineMop);
+
+            // The step is deliberately not advanced, so whatever was being taught is still
+            // the current lesson and the next kid of that kind still counts toward it. This
+            // does replace the instruction that was on screen, which is the right trade:
+            // the player has already read it once, and the mess is the more urgent thing.
+            return;
+        }
+
+        if (step == Step.Serve && correct) Advance(Step.Ladle);
+        else if (step == Step.OutOfStock && correct) Advance(Step.Done);
+    }
+
+    private void Update()
+    {
+        if (step == Step.Off) return;
+
+        clock += Time.unscaledDeltaTime;
+
+        // The pans can be relaid out when a palette regenerates, so the parking spot is
+        // recomputed rather than cached.
+        if (bubble != null) Reposition();
+
+        switch (step)
+        {
+            case Step.Waiting:
+                if (clock >= openDelay) Advance(Step.Welcome);
+                break;
+
+            case Step.Welcome:
+                if (clock >= 4f) Advance(Step.Pans);
+                break;
+
+            case Step.Pans:
+                // Held until somebody is actually standing there, so the instruction to
+                // serve never arrives before there is anybody to serve.
+                if (FrontWaiting() != null) Advance(Step.Serve);
+                break;
+
+            case Step.Serve:
+            case Step.Ladle:
+                WatchForOutOfStock();
+                break;
+        }
+    }
+
+    // The scripted kid who wants a color that is not on the counter. GameManager guarantees
+    // one appears on Sunday rather than leaving it to a 12% roll.
+    private void WatchForOutOfStock()
+    {
+        IndividualStudent front = FrontWaiting();
+        if (front == null || !front.WantsSomethingMissing) return;
+
+        Advance(Step.OutOfStock);
+    }
+
+    private IndividualStudent FrontWaiting()
+    {
+        if (queue == null || queue.Front == null) return null;
+
+        IndividualStudent kid = queue.Front.GetComponent<IndividualStudent>();
+        if (kid == null || !kid.Waiting) return null;
+
+        return kid;
+    }
+
+    private void Advance(Step next)
+    {
+        step = next;
+        clock = 0f;
+
+        switch (next)
+        {
+            case Step.Welcome:
+                Say(lineWelcome);
+                break;
+
+            case Step.Pans:
+                Say(linePans);
+                break;
+
+            case Step.Serve:
+                Say(lineServe);
+                break;
+
+            case Step.Ladle:
+                Say(lineLadle);
+                break;
+
+            case Step.OutOfStock:
+                Say(lineOutOfStock);
+                break;
+
+            case Step.Done:
+                Say(lineDone);
+                break;
+        }
+    }
+
+    private void Say(string text)
+    {
+        Dismiss();
+
+        SpeechBubble.Style style = WidestStyle();
+        if (style == null) return;
+
+        GameObject go = new GameObject("Tooltip", typeof(RectTransform));
+        bubble = go.AddComponent<SpeechBubble>();
+        bubble.Build(canvasRect, style, Font(), textColor, textPointSize, bubbleMaxWidth, bubbleRoom);
+        bubble.SetText(text);
+
+        Reposition();
+    }
+
+    private void Reposition()
+    {
+        if (bubble == null || canvasRect == null) return;
+
+        bubble.PlaceOn(ToCanvas(CounterCentre()), canvasRect.rect.size);
+    }
+
+    // Always the widest bubble on the list, never a rotation through them.
+    //
+    // The bubble is scaled whole, so the writing has to fit the shape the art already is.
+    // A sentence in the 32 by 12 bubble is two comfortable lines. The same sentence in the
+    // nearly square one, or in the cloud, becomes a five line column in a blob that covers
+    // the counter. Rotating through all three meant most of the tutorial got the wrong
+    // shape, and the wrong shape is not a style choice, it is unreadable.
+    //
+    // Chosen rather than being a slot to fill in, because "put the wide one first" is
+    // exactly the sort of instruction that gets lost and then looks like a bug.
+    private SpeechBubble.Style WidestStyle()
+    {
+        if (styles == null) return null;
+
+        SpeechBubble.Style best = null;
+        float bestRatio = -1f;
+
+        foreach (SpeechBubble.Style s in styles)
+        {
+            if (s == null || s.art == null || s.body.height <= 0f) continue;
+
+            float ratio = s.body.width / s.body.height;
+            if (ratio <= bestRatio) continue;
+
+            bestRatio = ratio;
+            best = s;
+        }
+
+        return best;
+    }
+
+    // The middle of the row of pans, which is the one part of the screen guaranteed to be
+    // empty while a tooltip is up.
+    //
+    // Sunday runs on two colors and they sit at opposite ends of the counter, so the gap
+    // between them is wide open. Every other spot is taken: kids fill the upper half, each
+    // of them carries a thought bubble showing what they want, and that bubble is the one
+    // thing the player has to be able to read.
+    private Vector3 CounterCentre()
+    {
+        if (slop == null) return Vector3.zero;
+
+        int count = slop.GetColorCount();
+        Vector3 sum = Vector3.zero;
+        int found = 0;
+
+        for (int i = 0; i < count; i++)
+        {
+            Slop pan = slop.GetSlopObject(i);
+            if (pan == null) continue;
+
+            sum += pan.transform.position;
+            found++;
+        }
+
+        return found > 0 ? sum / found : Vector3.zero;
+    }
+
+    // The game's own font unless somebody deliberately overrode it. Looked up rather than
+    // required, because an empty font slot silently falls back to Unity's default sans and
+    // the tooltip ends up as the only thing on screen that is not pixel art.
+    private TMP_FontAsset Font()
+    {
+        if (pixelFont != null) return pixelFont;
+
+        GameUI ui = FindFirstObjectByType<GameUI>();
+        return ui != null ? ui.Font : null;
+    }
+
+    private void Dismiss()
+    {
+        if (bubble != null) bubble.Close();
+
+        bubble = null;
+    }
+
+    private Vector2 ToCanvas(Vector3 world)
+    {
+        if (worldCam == null) worldCam = FindWorldCamera();
+        if (worldCam == null || canvasRect == null) return Vector2.zero;
+
+        Vector2 screen = worldCam.WorldToScreenPoint(world);
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screen, null,
+                                                                out Vector2 local);
+        return local;
+    }
+
+    // Same trap as the time popups: Camera.main needs the MainCamera tag, and LetterboxCamera
+    // parents a second camera whose only job is clearing the bars. Picking that one would
+    // put every bubble in the wrong place.
+    private Camera FindWorldCamera()
+    {
+        if (Camera.main != null) return Camera.main;
+
+        foreach (Camera c in Camera.allCameras)
+        {
+            if (c.cullingMask != 0) return c;
+        }
+
+        return null;
+    }
+
+    // Its own canvas rather than sharing GameUI's, so the tooltips sit above the HUD and so
+    // neither file has to know the other exists.
+    private void BuildCanvas()
+    {
+        GameObject go = new GameObject("Tutorial Canvas", typeof(RectTransform));
+        go.transform.SetParent(transform, false);
+
+        canvas = go.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 110;   // above GameUI, which sits at 100
+
+        CanvasScaler scaler = go.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 1f;   // lock to height, see note in MenuUI
+
+        canvasRect = go.GetComponent<RectTransform>();
+    }
+}

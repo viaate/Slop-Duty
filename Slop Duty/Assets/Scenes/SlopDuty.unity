@@ -304,6 +304,7 @@ GameObject:
   - component: {fileID: 499705052}
   - component: {fileID: 499705051}
   - component: {fileID: 499705053}
+  - component: {fileID: 499705054}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -332,6 +333,7 @@ MonoBehaviour:
   startClock: 45
   clockCap: 60
   freezeOnGameOver: 1
+  sundayOutOfStockKid: 3
 --- !u!4 &499705052
 Transform:
   m_ObjectHideFlags: 0
@@ -363,7 +365,82 @@ MonoBehaviour:
   privateCode: Fxmg60hoVUm1jk_2Cl6zfQs-JVvLrJs0CmQeUXjhJ3VQ
   topCount: 10
   logRequests: 1
-  useHttps: 1
+--- !u!114 &499705054
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 499705050}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ec4f6fe7d0e89d449e5ce6d9bdb81f5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  styles:
+  - art: {fileID: 21300000, guid: 6ae720b6c84214549b2d1bc56a4d56f3, type: 3}
+    body:
+      serializedVersion: 2
+      x: 1
+      y: 7
+      width: 30
+      height: 25
+    tail:
+      serializedVersion: 2
+      x: 4
+      y: 2
+      width: 9
+      height: 6
+    border: {x: 7, y: 7, z: 7, w: 7}
+    tailAlongBottom: 0.23
+  - art: {fileID: 21300000, guid: f910ddf4e0af192489d6635418dedf6f, type: 3}
+    body:
+      serializedVersion: 2
+      x: 0
+      y: 12
+      width: 32
+      height: 12
+    tail:
+      serializedVersion: 2
+      x: 0
+      y: 6
+      width: 9
+      height: 6
+    border: {x: 4, y: 4, z: 4, w: 4}
+    tailAlongBottom: 0.13
+  - art: {fileID: 21300000, guid: fe96e90981924e64ea939072e9ae05a8, type: 3}
+    body:
+      serializedVersion: 2
+      x: 0
+      y: 11
+      width: 32
+      height: 19
+    tail:
+      serializedVersion: 2
+      x: 11
+      y: 4
+      width: 11
+      height: 7
+    border: {x: 8, y: 6, z: 8, w: 9}
+    tailAlongBottom: 0.5
+  pixelFont: {fileID: 0}
+  textColor: {r: 0.129, g: 0.121, b: 0.098, a: 1}
+  textSize: 34
+  textInset: 28
+  bubbleMaxWidth: 900
+  gamePixelsPerUnit: 32
+  artScale: 3
+  welcomeText: Sunday. Nobody comes in. Good day to learn the job.
+  pansText: These are your pans. Click one to load your ladle with that color.
+  serveText: This one wants that color. Load the pan that matches, then click them.
+  ladleText: Nice. The ladle keeps its color, so you can serve a whole run without
+    re-clicking.
+  outOfStockText: You have not got this color. Do not guess. Hit SORRY, WE'RE OUT.
+  mopText: Wrong color, so up it comes. Mess slows everyone down. Click the puddle
+    to mop it.
+  doneText: That is the whole job. Sunday never ends on its own, so stay as long
+    as you like.
+  openDelay: 2.4
 --- !u!1 &500625482
 GameObject:
   m_ObjectHideFlags: 0
@@ -523,6 +600,7 @@ GameObject:
   - component: {fileID: 513445168}
   - component: {fileID: 513445171}
   - component: {fileID: 513445172}
+  - component: {fileID: 513445173}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -662,6 +740,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   targetAspect: 1.7777778
   barColor: {r: 0, g: 0, b: 0, a: 1}
+--- !u!114 &513445173
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 513445167}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cf6e348a173d85458178972b39f16f2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  designWidth: 18
+  designHeight: 10
 --- !u!1 &722934937
 GameObject:
   m_ObjectHideFlags: 0
@@ -1447,6 +1539,15 @@ MonoBehaviour:
   cardHold: 1.3
   cardFall: 0.45
   lowTimeSeconds: 10
+  rollSpeed: 12
+  snapBelowSeconds: 5
+  popupHeadroom: 150
+  popupGainSize: 44
+  popupGainLife: 0.75
+  popupGainRise: 90
+  popupLossSize: 66
+  popupLossLife: 1.15
+  popupLossRise: 130
   statRowGap: 60
 --- !u!4 &1995097748
 Transform:

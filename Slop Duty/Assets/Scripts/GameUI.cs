@@ -20,6 +20,11 @@ public class GameUI : MonoBehaviour
              "visual lever here, far more than colors or layout.")]
     [SerializeField] private TMP_FontAsset pixelFont;
 
+    // So the tutorial can borrow it rather than needing the same asset dragged into a
+    // second slot, which is a slot somebody will eventually forget and then wonder why one
+    // part of the game is suddenly in Unity's default sans.
+    public TMP_FontAsset Font => pixelFont;
+
     [Header("Palette")]
     [SerializeField] private Color ink = new Color(0.851f, 0.898f, 0.769f);
     [SerializeField] private Color inkDim = new Color(0.541f, 0.596f, 0.427f);
@@ -495,7 +500,7 @@ public class GameUI : MonoBehaviour
         CanvasScaler scaler = canvasGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.matchWidthOrHeight = 0.5f;
+        scaler.matchWidthOrHeight = 1f;   // lock to height, see note in MenuUI
 
         canvasGo.AddComponent<GraphicRaycaster>();
 

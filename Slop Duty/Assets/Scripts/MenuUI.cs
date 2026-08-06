@@ -100,6 +100,11 @@ public class MenuUI : MonoBehaviour
 
     private GameObject menuRoot;
     private GameObject boardPanel;
+    private GameObject settingsPanel;
+    private GameObject accessPanel;
+    private PixelText volumeReadout;
+    private PixelText accessNote;
+    private HoverTint[] visionTints;
     private PixelText boardNames;
     private PixelText boardScores;
     private PixelText boardStatus;
@@ -175,6 +180,143 @@ public class MenuUI : MonoBehaviour
         boardPanel.SetActive(opening);
 
         if (opening) RequestBoard();
+    }
+
+    private void ToggleSettings()
+    {
+        bool opening = !settingsPanel.activeSelf;
+
+        menuRoot.SetActive(!opening);
+        settingsPanel.SetActive(opening);
+        accessPanel.SetActive(false);
+    }
+
+    // Settings stays switched off underneath rather than showing through, matching how the
+    // leaderboard covers the menu. Coming back lands on settings, not all the way out,
+    // because accessibility is somewhere you arrived from there.
+    private void ToggleAccess()
+    {
+        bool opening = !accessPanel.activeSelf;
+
+        settingsPanel.SetActive(!opening);
+        accessPanel.SetActive(opening);
+    }
+
+    // --- settings ---
+
+    private void BuildSettingsPanel(RectTransform root)
+    {
+        RectTransform panel = MakePanel(root, "Settings Panel", "SETTINGS", out settingsPanel);
+
+        PixelText volumeLabel = MakeText("Volume Label", panel, 30, TextAlignmentOptions.Top, ink,
+                                         new Vector2(0.5f, 1f), new Vector2(0f, -260f), new Vector2(900f, 40f));
+        volumeLabel.Text = "VOLUME";
+
+        volumeReadout = MakeText("Volume Value", panel, 44, TextAlignmentOptions.Top, accent,
+                                 new Vector2(0.5f, 1f), new Vector2(0f, -320f), new Vector2(900f, 56f));
+
+        Slider slider = MakeSlider("Volume", panel, new Vector2(0f, -420f), new Vector2(760f, 40f));
+        slider.value = Settings.Volume;
+        slider.onValueChanged.AddListener(OnVolumeChanged);
+
+        ShowVolume(Settings.Volume);
+
+        MakeButton("Access", panel, "ACCESSIBILITY", new Vector2(0f, -560f), new Vector2(480f, 84f),
+                   new Vector2(0.5f, 1f), 30)
+            .onClick.AddListener(ToggleAccess);
+
+        MakeButton("Settings Back", panel, "BACK", new Vector2(0f, -880f), new Vector2(320f, 76f),
+                   new Vector2(0.5f, 1f), 30)
+            .onClick.AddListener(ToggleSettings);
+
+        settingsPanel.SetActive(false);
+    }
+
+    private void OnVolumeChanged(float value)
+    {
+        Settings.Volume = value;
+        ShowVolume(value);
+    }
+
+    // Shown as a percentage rather than only as a bar position. A slider with no number is
+    // guesswork at the quiet end, where the difference between very low and silent is the
+    // difference between working and broken.
+    private void ShowVolume(float value)
+    {
+        if (volumeReadout == null) return;
+
+        int percent = Mathf.RoundToInt(Mathf.Clamp01(value) * 100f);
+        volumeReadout.Text = percent <= 0 ? "MUTED" : $"{percent}%";
+    }
+
+    // --- accessibility ---
+
+    private void BuildAccessPanel(RectTransform root)
+    {
+        RectTransform panel = MakePanel(root, "Accessibility Panel", "COLOR VISION", out accessPanel);
+
+        PixelText blurb = MakeText("Access Blurb", panel, 26, TextAlignmentOptions.Top, inkDim,
+                                   new Vector2(0.5f, 1f), new Vector2(0f, -230f), new Vector2(1300f, 120f));
+        blurb.Text = "PICK WHAT YOU SEE AND THE COUNTER STOPS USING COLORS\n" +
+                     "YOU CANNOT TELL APART. EVERY SLOP ALSO GETS A SHAPE.";
+
+        SetLineSpacing(blurb, 14f);
+
+        visionTints = new HoverTint[4];
+
+        for (int i = 0; i < 4; i++)
+        {
+            // Copied into its own local before the listener closes over it. Capturing the
+            // loop variable directly would give every button whichever value i ended on.
+            ColorVision option = (ColorVision)i;
+
+            MakeButton($"Vision {i}", panel, Colorblind.LabelFor(option),
+                       new Vector2(0f, -(360f + (i * 96f))), new Vector2(560f, 84f),
+                       new Vector2(0.5f, 1f), 30, out visionTints[i])
+                .onClick.AddListener(() => ChooseVision(option));
+        }
+
+        accessNote = MakeText("Access Note", panel, 24, TextAlignmentOptions.Top, accent,
+                              new Vector2(0.5f, 1f), new Vector2(0f, -812f), new Vector2(1300f, 40f));
+
+        MakeButton("Access Back", panel, "BACK", new Vector2(0f, -880f), new Vector2(320f, 76f),
+                   new Vector2(0.5f, 1f), 30)
+            .onClick.AddListener(ToggleAccess);
+
+        ShowVision();
+
+        accessPanel.SetActive(false);
+    }
+
+    private void ChooseVision(ColorVision option)
+    {
+        Settings.Vision = option;
+        ShowVision();
+    }
+
+    // The chosen option stays lit, rather than only lighting under the pointer.
+    //
+    // Four identical buttons and one line of text underneath was not enough: the state was
+    // shown somewhere other than where the choice is made, so the only way to check what
+    // you had picked was to read the bottom of the screen. Lighting the button itself puts
+    // the answer where the question is.
+    private void ShowVision()
+    {
+        if (visionTints != null)
+        {
+            for (int i = 0; i < visionTints.Length; i++)
+            {
+                if (visionTints[i] == null) continue;
+
+                bool on = (ColorVision)i == Settings.Vision;
+                visionTints[i].Setup(visionTints[i].Fill, visionTints[i].Label,
+                                     on ? accent : inkDim, accent);
+            }
+        }
+
+        if (accessNote == null) return;
+
+        accessNote.Text = Colorblind.NoteFor(Settings.Vision);
     }
 
     // --- leaderboard ---
@@ -256,7 +398,17 @@ public class MenuUI : MonoBehaviour
         CanvasScaler scaler = canvasGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.matchWidthOrHeight = 0.5f;
+        // Locked to height, not the 0.5 blend it used to be.
+        //
+        // The camera is orthographic, so the world's scale is decided purely by screen
+        // HEIGHT: a wider window shows more sideways but never makes anything bigger.
+        // Matching height makes the interface behave the same way, so a shape change moves
+        // the edges further apart and leaves everything the size it was.
+        //
+        // On the 0.5 blend the scale factor was a mix of both axes, so widening the window
+        // grew every label, and at a wide enough aspect the menu grew until it overflowed
+        // its own screen. That is the whole "nothing is locked" problem.
+        scaler.matchWidthOrHeight = 1f;
 
         canvasGo.AddComponent<GraphicRaycaster>();
 
@@ -308,6 +460,13 @@ public class MenuUI : MonoBehaviour
                    new Vector2(1f, 1f), 24)
             .onClick.AddListener(ToggleBoard);
 
+        // Mirrored into the opposite corner. Same size, same inset, same reasoning: both
+        // are places to go rather than things to do, so neither belongs in the column with
+        // the two buttons that start a game.
+        MakeButton("Settings", content, "SETTINGS", new Vector2(32f, -32f), new Vector2(300f, 64f),
+                   new Vector2(0f, 1f), 24)
+            .onClick.AddListener(ToggleSettings);
+
         BuildTeam(content);
 
         PixelText best = MakeText("Best", content, 24, TextAlignmentOptions.Bottom, inkDim,
@@ -317,6 +476,8 @@ public class MenuUI : MonoBehaviour
             : "NO SHIFTS SURVIVED YET";
 
         BuildBoardPanel(root);
+        BuildSettingsPanel(root);
+        BuildAccessPanel(root);
     }
 
     // The credits line, but as the three of you standing in the canteen. Replaces the
@@ -435,6 +596,105 @@ public class MenuUI : MonoBehaviour
         boardPanel.SetActive(false);
     }
 
+    // The full screen overlay with an inverted header strip, as established by the
+    // leaderboard: dark text on a solid accent band. The front page is light text on dark,
+    // so flipping the relationship makes these read as a different screen rather than the
+    // same one with new words on it.
+    private RectTransform MakePanel(RectTransform root, string objectName, string heading,
+                                    out GameObject panelObject)
+    {
+        panelObject = new GameObject(objectName, typeof(RectTransform));
+        panelObject.transform.SetParent(root, false);
+
+        RectTransform panel = panelObject.GetComponent<RectTransform>();
+        Stretch(panel, Vector2.zero, Vector2.zero);
+
+        // Fully opaque. A near-opaque overlay still lets a bright title bleed through
+        // against a near-black background, because the eye picks up small absolute
+        // differences in dark areas.
+        Image bg = panelObject.AddComponent<Image>();
+        bg.color = background;
+
+        GameObject strip = new GameObject("Header Strip", typeof(RectTransform));
+        strip.transform.SetParent(panel, false);
+
+        RectTransform stripRect = strip.GetComponent<RectTransform>();
+        stripRect.anchorMin = new Vector2(0f, 1f);
+        stripRect.anchorMax = new Vector2(1f, 1f);
+        stripRect.pivot = new Vector2(0.5f, 1f);
+        stripRect.sizeDelta = new Vector2(0f, 150f);
+        stripRect.anchoredPosition = Vector2.zero;
+
+        strip.AddComponent<Image>().color = accent;
+
+        // No drop shadow. A shadow lifts light text off a dark background, and dark text on
+        // a light band does not need lifting.
+        TextMeshProUGUI title = RawText("Heading", stripRect, 64, TextAlignmentOptions.Center, background);
+        Stretch(title.rectTransform, Vector2.zero, Vector2.zero);
+        title.text = heading;
+
+        return panel;
+    }
+
+    // Built by hand rather than from Unity's slider prefab, so it matches everything else
+    // here: flat rectangles, no rounded sprites, no gradients.
+    private Slider MakeSlider(string objectName, RectTransform parent, Vector2 position, Vector2 size)
+    {
+        GameObject go = new GameObject(objectName, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        Anchor(go.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), position, size);
+
+        Slider slider = go.AddComponent<Slider>();
+
+        // The track is what catches the click, so it has to stay raycastable. Everything
+        // else here is decoration and is switched off for hit testing.
+        Image track = MakeBlock("Track", go.transform, new Color(ink.r, ink.g, ink.b, 0.18f), true);
+        Stretch(track.rectTransform, Vector2.zero, Vector2.zero);
+
+        GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
+        fillArea.transform.SetParent(go.transform, false);
+        Stretch(fillArea.GetComponent<RectTransform>(), Vector2.zero, Vector2.zero);
+
+        Image fill = MakeBlock("Fill", fillArea.transform, accent, false);
+        fill.rectTransform.anchorMin = Vector2.zero;
+        fill.rectTransform.anchorMax = Vector2.one;
+        fill.rectTransform.offsetMin = Vector2.zero;
+        fill.rectTransform.offsetMax = Vector2.zero;
+
+        GameObject slideArea = new GameObject("Handle Area", typeof(RectTransform));
+        slideArea.transform.SetParent(go.transform, false);
+
+        // Inset by half a handle so the handle's own edges stop flush with the track's
+        // rather than hanging off both ends.
+        float half = size.y * 0.5f;
+        Stretch(slideArea.GetComponent<RectTransform>(), new Vector2(half, 0f), new Vector2(-half, 0f));
+
+        Image handle = MakeBlock("Handle", slideArea.transform, ink, true);
+        handle.rectTransform.sizeDelta = new Vector2(size.y, size.y + 16f);
+
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.minValue = 0f;
+        slider.maxValue = 1f;
+        slider.wholeNumbers = false;
+        slider.fillRect = fill.rectTransform;
+        slider.handleRect = handle.rectTransform;
+        slider.targetGraphic = handle;
+
+        return slider;
+    }
+
+    private static Image MakeBlock(string objectName, Transform parent, Color color, bool clickable)
+    {
+        GameObject go = new GameObject(objectName, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+
+        Image img = go.AddComponent<Image>();
+        img.color = color;
+        img.raycastTarget = clickable;
+
+        return img;
+    }
+
     // --- shared bits, mirrored from GameUI ---
 
     private class PixelText
@@ -504,6 +764,16 @@ public class MenuUI : MonoBehaviour
     private Button MakeButton(string name, RectTransform parent, string label,
                               Vector2 position, Vector2 size, Vector2 anchor, int fontSize)
     {
+        return MakeButton(name, parent, label, position, size, anchor, fontSize, out _);
+    }
+
+    // The variant that hands back its hover behaviour, for buttons that also have to show
+    // an on or off state. Re-running Setup with a different idle color is what makes the
+    // chosen one stay lit instead of only lighting under the pointer.
+    private Button MakeButton(string name, RectTransform parent, string label,
+                              Vector2 position, Vector2 size, Vector2 anchor, int fontSize,
+                              out HoverTint tint)
+    {
         GameObject go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
 
@@ -520,7 +790,8 @@ public class MenuUI : MonoBehaviour
                                   new Vector2(0.5f, 0.5f), Vector2.zero, size);
         text.Text = label;
 
-        go.AddComponent<HoverTint>().Setup(img, text.main, inkDim, accent);
+        tint = go.AddComponent<HoverTint>();
+        tint.Setup(img, text.main, inkDim, accent);
 
         return b;
     }

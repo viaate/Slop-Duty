@@ -46,6 +46,18 @@ public class GameManager : MonoBehaviour
     // switched off by simply not subscribing.
     public event System.Action<float, Vector2> TimeChanged;
 
+    // Fired after every kid is dealt with, true when the player got it right. The Sunday
+    // tutorial listens so it can move on to the next thing it wants to teach.
+    public event System.Action<bool> StudentResolved;
+
+    [Header("Sunday")]
+    [Tooltip("Which kid of the training shift is the one who wants a color you have not " +
+             "got. Guaranteed rather than rolled, so nobody can finish Sunday without ever " +
+             "meeting the case that the sorry-we're-out button exists for.")]
+    [SerializeField, Min(1)] private int sundayOutOfStockKid = 3;
+
+    private int sundayKids;
+
     public DayConfig Today { get; private set; }
     public int Day { get; private set; }
     public bool RunOver { get; private set; }
@@ -114,6 +126,10 @@ public class GameManager : MonoBehaviour
     {
         Today = DayConfig.For(Day);
 
+        // Restarted with the shift, so replaying Sunday deals the same teaching hand
+        // rather than carrying a count over from the last time through.
+        if (Day == 0) sundayKids = 0;
+
         if (queue != null) queue.Configure(Today);
         if (slopLogic != null) slopLogic.GeneratePalette(Today.slopColors);
 
@@ -133,7 +149,7 @@ public class GameManager : MonoBehaviour
 
         if (puke != null) puke.NoteServe();
 
-        CountResolution();
+        CountResolution(true);
     }
 
     public void ReportWrong(Vector2 where)
@@ -149,7 +165,7 @@ public class GameManager : MonoBehaviour
             puke.NoteServe();
         }
 
-        CountResolution();
+        CountResolution(false);
     }
 
     public void ReportWalkOut(Vector2 where)
@@ -165,7 +181,21 @@ public class GameManager : MonoBehaviour
             puke.NoteServe();
         }
 
-        CountResolution();
+        CountResolution(false);
+    }
+
+    // Asked once per kid, at the moment their request is chosen.
+    //
+    // Every other day this is the dice roll it has always been. Sunday deals from a script
+    // instead, because a 12% chance across a six kid shift means better than two in five
+    // players finish the tutorial having never once needed the sorry-we're-out button, and
+    // then meet it for the first time on Monday with a clock running.
+    public bool NextRequestIsOutOfStock()
+    {
+        if (Day > 0) return Random.value < outOfStockChance;
+
+        sundayKids++;
+        return sundayKids == sundayOutOfStockKid;
     }
 
     // One funnel for every clock change a serve can cause, so the popup and the sound can
@@ -190,8 +220,10 @@ public class GameManager : MonoBehaviour
     private bool ClockFull => timer != null && timer.Running
                               && timer.TimeRemaining >= timer.MaxTime - 0.01f;
 
-    private void CountResolution()
+    private void CountResolution(bool correct)
     {
+        StudentResolved?.Invoke(correct);
+
         resolvedToday++;
         if (resolvedToday < Today.quota) return;
 
