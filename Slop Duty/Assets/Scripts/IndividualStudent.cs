@@ -56,6 +56,18 @@ public class IndividualStudent : MonoBehaviour
 
     public bool IsResolved => resolved;
 
+    // Bow out without being counted. Used when a boss clears the counter: these kids were
+    // neither served nor lost, they were moved, so nothing about them should reach the
+    // scoreboard, the clock or the floor.
+    public void StandDown()
+    {
+        resolved = true;
+        waiting = false;
+
+        Collider2D hitbox = GetComponentInChildren<Collider2D>();
+        if (hitbox != null) hitbox.enabled = false;
+    }
+
     private void Awake()
     {
         student = GetComponent<Student>();

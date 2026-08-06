@@ -32,6 +32,11 @@ public class GameUI : MonoBehaviour
     [SerializeField] private Color danger = new Color(0.878f, 0.298f, 0.239f);
     [SerializeField] private Color shadowInk = new Color(0.043f, 0.047f, 0.031f, 0.85f);
 
+    [Tooltip("The perk name only. A cold color on purpose: everything else on the HUD is in " +
+             "the warm end of the palette, so a boost reads as something else entirely " +
+             "rather than as another line of the same status text.")]
+    [SerializeField] private Color boostInk = new Color(0.416f, 0.831f, 0.902f);
+
     [Header("Shadow")]
     [Tooltip("Hard offset behind every label, in reference pixels. Whole numbers only, " +
              "or it stops looking like pixel art.")]
@@ -82,6 +87,10 @@ public class GameUI : MonoBehaviour
     private PixelText weekLabel;
     private PixelText clockLabel;
     private PixelText quotaLabel;
+    private PixelText bossLabel;
+    private PixelText bossPrize;
+    private PixelText boostLabel;
+    private BossDirector bossDirector;
 
     private GameObject hudRoot;
     private RectTransform popupLayer;
@@ -174,6 +183,10 @@ public class GameUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        // Dropped separately from the manager's, since this one is subscribed lazily the
+        // first frame a director is found rather than in Start.
+        if (bossDirector != null) bossDirector.Resolved -= OnBossResolved;
+
         if (game == null) return;
 
         game.DayStarted -= ShowDayCard;
@@ -247,8 +260,75 @@ public class GameUI : MonoBehaviour
             clockLabel.root.localScale = Vector3.one * step;
         }
 
+        RefreshBoss();
+
         // No mess warning. The puddle growing and the vignette closing in already say it,
         // and a line of text shouting over the top was redundant.
+    }
+
+    // The boss banner: who is here, how many of their orders are done, and how long is left.
+    //
+    // Without a visible countdown the encounter has no tension, because the only way to
+    // learn the limit exists is to hit it. The regular clock is still up in the corner doing
+    // its own job, so this deliberately sits somewhere else and in the warning color.
+    private void RefreshBoss()
+    {
+        if (bossLabel == null) return;
+
+        if (bossDirector == null)
+        {
+            bossDirector = FindFirstObjectByType<BossDirector>();
+            if (bossDirector != null) bossDirector.Resolved += OnBossResolved;
+        }
+
+        // The perk currently running, all week, every day. Separate from the boss banner
+        // because the two answer different questions: this one is "what am I playing with",
+        // the other is "what am I playing for".
+        if (boostLabel != null && game != null)
+        {
+            // The name in the cold color, the effect in the ordinary accent. Both in one
+            // tint they were indistinguishable, which is why a line meaning "BIG TIPS, and
+            // here is what that does" read as a single sentence nobody finishes. Two colors
+            // separate them without either half being hard to read.
+            boostLabel.Text = WeekBoost.ActiveOn(game.Day)
+                ? $"<color=#{ColorUtility.ToHtmlStringRGB(boostInk)}>{WeekBoost.Describe()}</color>" +
+                  $"   {WeekBoost.Explain(WeekBoost.Kind)}"
+                : string.Empty;
+        }
+
+        BossVisitor boss = bossDirector != null ? bossDirector.Active : null;
+
+        if (boss == null || boss.Finished)
+        {
+            bossLabel.Text = string.Empty;
+            if (bossPrize != null) bossPrize.Text = string.Empty;
+            return;
+        }
+
+        bossLabel.Text = $"{boss.Owner}   {boss.Served}/{boss.Total}   {Mathf.CeilToInt(boss.Remaining)}";
+
+        if (bossPrize != null) bossPrize.Text = $"WIN: {WeekBoost.Describe(boss.Prize)}";
+    }
+
+    // The moment it is won, on the same card a new day arrives on. Reusing that animation
+    // rather than inventing a second one keeps the two announcements feeling like the same
+    // game talking, and the card is already the place the player looks for news.
+    private void OnBossResolved(BossVisitor boss)
+    {
+        if (boss == null) return;
+
+        if (!boss.Won)
+        {
+            RaiseCard("TOO SLOW", $"{boss.Owner} LEFT WITHOUT THEIR ORDER", inkDim);
+            cardDay.Tint = danger;
+            return;
+        }
+
+        RaiseCard(WeekBoost.Describe(boss.Prize), WeekBoost.Explain(boss.Prize), accent);
+
+        // The headline takes the boost color too, so the moment it is won and the reminder
+        // that runs all week are recognisably the same thing.
+        cardDay.Tint = boostInk;
     }
 
     // --- floating time numbers ---
@@ -317,9 +397,60 @@ public class GameUI : MonoBehaviour
 
         if (cardDay == null) return;
 
-        cardDay.Text = DayConfig.NameFor(day);
-        cardWeek.Text = day <= 0 ? "NOBODY COMES IN ON A SUNDAY" : $"WEEK {DayConfig.WeekFor(day)}";
+        // Reminded on the card as well as kept in the corner. A perk announced once and then
+        // hidden is indistinguishable from no perk by about Wednesday.
+        if (WeekBoost.ActiveOn(day))
+        {
+            RaiseCard(DayConfig.NameFor(day),
+                      $"WEEK {DayConfig.WeekFor(day)}   {WeekBoost.Describe()}", accent);
+            return;
+        }
+
+        RaiseCard(DayConfig.NameFor(day),
+                  day <= 0 ? "NOBODY COMES IN ON A SUNDAY" : $"WEEK {DayConfig.WeekFor(day)}",
+                  inkDim);
+    }
+
+    // One entry point for anything that wants the big centre card, so a new day and a won
+    // perk animate identically instead of drifting apart.
+    private void RaiseCard(string headline, string note, Color noteTint)
+    {
+        if (cardDay == null) return;
+
+        FitLine(cardDay, headline, 130, 1360f);
+        FitLine(cardWeek, note, 30, 1360f);
+
+        // Reset every time so a caller that wants a different headline color has to say so.
+        // Without this a single boss win left every day name after it tinted like a perk.
+        cardDay.Tint = ink;
+        cardWeek.Tint = noteTint;
+
         cardTimer = 0f;
+    }
+
+    // Steps a card line down until it fits on ONE line.
+    //
+    // The card was built for day names, which are short. Perk names are not: SIMPLE PALETTE
+    // at the day size wrapped, and a wrapped headline drops its second line straight onto
+    // the note underneath. Wrapping is switched off so it cannot happen at all, and the size
+    // comes down in whole steps so the pixel font stays on whole pixels.
+    //
+    // Measured every time rather than only when it overflows, so a long perk name on Monday
+    // does not leave TUESDAY shrunk for the rest of the week.
+    private static void FitLine(PixelText text, string value, int points, float width)
+    {
+        text.Text = value;
+
+        text.main.enableWordWrapping = false;
+        text.shadow.enableWordWrapping = false;
+
+        for (; points > 24; points -= 6)
+        {
+            text.main.fontSize = points;
+            if (text.main.GetPreferredValues(value).x <= width) break;
+        }
+
+        text.shadow.fontSize = text.main.fontSize;
     }
 
     private void TickCard()
@@ -533,6 +664,32 @@ public class GameUI : MonoBehaviour
         quotaLabel = MakeText("Quota", root, 22, TextAlignmentOptions.TopRight, inkDim,
                           new Vector2(1f, 1f), new Vector2(-40f, -100f), new Vector2(400f, 30f));
 
+        // Top centre, between the day on the left and the clock on the right. Empty and
+        // invisible until somebody drops in.
+        bossLabel = MakeText("Boss", root, 40, TextAlignmentOptions.Top, danger,
+                         new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(900f, 52f));
+
+        // What is at stake, under the countdown. Without it the encounter is a timer with
+        // no stated reward, and nobody pushes for a prize they have not been told about.
+        bossPrize = MakeText("Boss Prize", root, 22, TextAlignmentOptions.Top, accent,
+                         new Vector2(0.5f, 1f), new Vector2(0f, -78f), new Vector2(900f, 30f));
+
+        // The running perk, kept up all week under the week number. The day card announces
+        // it once, and once is not enough for something that changes how five days play.
+        // -120, not -112. The week label above runs to -114, so the old value overlapped it
+        // by a couple of pixels, which on a pixel font is enough to look like a mistake.
+        // Accent, not the dim ink. The dim was legible on paper and not on brick: the
+        // background behind the HUD is a mid-tone wall, and a low contrast status line
+        // disappears into it exactly where somebody has to read it at a glance.
+        boostLabel = MakeText("Boost", root, 22, TextAlignmentOptions.TopLeft, accent,
+                          new Vector2(0f, 1f), new Vector2(40f, -120f), new Vector2(1200f, 30f));
+
+        // Never wraps. It was folding onto a second line and landing on the week number
+        // above it, and a status line that grows downward into other status lines is worse
+        // than one that runs long. Widened to match, so in practice it does neither.
+        boostLabel.main.enableWordWrapping = false;
+        boostLabel.shadow.enableWordWrapping = false;
+
         // Created last, so its children draw over the labels above. Sibling order is what
         // decides overlap on a canvas, and a popup passing behind the clock would look
         // like a glitch rather than a layer.
@@ -641,6 +798,13 @@ public class GameUI : MonoBehaviour
 
         TextMeshProUGUI shadow = RawText(name + " Shadow", rt, size, align, shadowInk);
         Stretch(shadow.rectTransform, shadowOffset, shadowOffset);
+
+        // The shadow ignores color tags and stays its own dark.
+        //
+        // Both halves of a PixelText carry the SAME string, so a <color> tag meant for the
+        // writing recolored the shadow with it. The result was two bright copies a few
+        // pixels apart, which reads as a smeared bold rather than as text with a shadow.
+        shadow.overrideColorTags = true;
 
         TextMeshProUGUI main = RawText(name + " Main", rt, size, align, color);
         Stretch(main.rectTransform, Vector2.zero, Vector2.zero);

@@ -31,6 +31,14 @@ public class GameManager : MonoBehaviour
 
     [SerializeField] private bool freezeOnGameOver = true;
 
+    // Guarded the same way the handler is, so a release build has neither the field nor a
+    // compiler warning about a setting nothing reads.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    [Tooltip("Editor and development builds only. ] jumps to the Monday of the next week, " +
+             "for reaching the boss weeks without playing through to them.")]
+    [SerializeField] private bool devShortcuts = true;
+#endif
+
     // Fired with the new day number whenever a shift begins, including the first.
     public event System.Action<int> DayStarted;
 
@@ -105,6 +113,12 @@ public class GameManager : MonoBehaviour
         if (PlayerPrefs.GetInt(TutorialPrefKey, 0) == 1) startDay = 0;
 
         Stats.Reset();
+
+        // A perk is worth a week, and a week does not outlive the run that won it. Without
+        // this, a boost earned on one attempt would still be running on the next, which
+        // would read as a mystery difficulty swing rather than as a reward.
+        WeekBoost.Clear();
+
         Day = startDay;
         ApplyDay();
 
@@ -124,7 +138,9 @@ public class GameManager : MonoBehaviour
 
     private void ApplyDay()
     {
-        Today = DayConfig.For(Day);
+        // The week's perk is folded in the moment the day is built, so everything
+        // downstream reads adjusted numbers and none of it has to know a boost exists.
+        Today = WeekBoost.Apply(DayConfig.For(Day), Day);
 
         // Restarted with the shift, so replaying Sunday deals the same teaching hand
         // rather than carrying a count over from the last time through.
@@ -184,6 +200,25 @@ public class GameManager : MonoBehaviour
         CountResolution(false);
     }
 
+    // A boss order. Pays a flat amount instead of the day's reward, and does NOT count
+    // toward the quota.
+    //
+    // Flat, because Today.reward shrinks every day and bottoms out at 0.8 seconds. A boss on
+    // day 30 paying what a boss on day 6 paid is the whole point: it is the one source of
+    // time that does not decay, so a player good enough to keep clearing them can stay ahead
+    // of the curve indefinitely rather than being ground down on schedule.
+    //
+    // Off the quota, because the quota rolls the day over, and a day rolling over mid
+    // encounter used to end the boss early and cost the player the perk they were most of
+    // the way to earning.
+    public void ReportBossOrder(Vector2 where, float seconds)
+    {
+        if (RunOver) return;
+
+        Stats.served++;
+        Bank(timer != null ? timer.AddTime(seconds) : 0f, where);
+    }
+
     // Asked once per kid, at the moment their request is chosen.
     //
     // Every other day this is the dice roll it has always been. Sunday deals from a script
@@ -192,6 +227,10 @@ public class GameManager : MonoBehaviour
     // then meet it for the first time on Monday with a clock running.
     public bool NextRequestIsOutOfStock()
     {
+        // Al's perk. With the sorter running nobody asks for something the counter has not
+        // got, which is the one boost that removes a question rather than softening a number.
+        if (WeekBoost.ScreensOrders(Day)) return false;
+
         if (Day > 0) return Random.value < outOfStockChance;
 
         sundayKids++;
@@ -219,6 +258,40 @@ public class GameManager : MonoBehaviour
     // of showing a silent nothing that looks identical to a bug.
     private bool ClockFull => timer != null && timer.Running
                               && timer.TimeRemaining >= timer.MaxTime - 0.01f;
+
+    // --- testing ---
+
+    // ] jumps to the Monday of the next week, which is where the bosses live. Press it
+    // again to keep going: from Sunday or any of week 1 it lands on day 6, then 11, then 16.
+    //
+    // Compiled out of anything but the editor and a development build, so it cannot ship to
+    // itch as a cheat. That is a compile-time guard rather than a runtime check on purpose,
+    // because a runtime check leaves the key handler in the build for somebody to find.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private void Update()
+    {
+        if (!devShortcuts || RunOver) return;
+        if (!Input.GetKeyDown(KeyCode.RightBracket)) return;
+
+        SkipToNextWeek();
+    }
+
+    private void SkipToNextWeek()
+    {
+        // Monday of the week after this one. Day 0 counts as week 1, so a jump from the
+        // training shift lands on the first week that can have a boss in it.
+        Day = (DayConfig.WeekFor(Day) * 5) + 1;
+        resolvedToday = 0;
+
+        ApplyDay();
+
+        // The clock is only started by the real day-one rollover, so a jump that skips
+        // past it has to start the clock itself or the run sits at zero forever.
+        if (timer != null && !timer.Running) timer.Begin();
+
+        Debug.Log($"Skipped to day {Day}, week {DayConfig.WeekFor(Day)}.", this);
+    }
+#endif
 
     private void CountResolution(bool correct)
     {

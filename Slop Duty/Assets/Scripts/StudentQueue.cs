@@ -48,6 +48,37 @@ public class StudentQueue : MonoBehaviour
 
     public void StopSpawning() => spawning = false;
 
+    public void ResumeSpawning()
+    {
+        spawning = true;
+
+        // Reset, so the line does not immediately dump a backlog of kids the moment a boss
+        // leaves. The next one arrives on a fresh interval like any other.
+        spawnTimer = GameManager.Instance != null
+            ? GameManager.Instance.CurrentArrivalInterval
+            : spawnInterval;
+    }
+
+    // Everybody currently at the counter drops through the floor and the line empties.
+    //
+    // They stand down first rather than being served or dismissed: nobody is scored, no
+    // penalty fires, no mess appears. A boss landing is not the player's mistake, so it must
+    // not be charged like one.
+    public void ClearThroughFloor(float speed)
+    {
+        foreach (Student s in line)
+        {
+            if (s == null) continue;
+
+            IndividualStudent kid = s.GetComponent<IndividualStudent>();
+            if (kid != null) kid.StandDown();
+
+            s.SinkAway(speed, 6f);
+        }
+
+        line.Clear();
+    }
+
     private void Update()
     {
         if (!spawning) return;

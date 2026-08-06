@@ -305,6 +305,7 @@ GameObject:
   - component: {fileID: 499705051}
   - component: {fileID: 499705053}
   - component: {fileID: 499705054}
+  - component: {fileID: 499705055}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -333,6 +334,7 @@ MonoBehaviour:
   startClock: 45
   clockCap: 60
   freezeOnGameOver: 1
+  devShortcuts: 1
   sundayOutOfStockKid: 3
 --- !u!4 &499705052
 Transform:
@@ -378,43 +380,86 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   styles:
-  - art: {fileID: 21300000, guid: 6ae720b6c84214549b2d1bc56a4d56f3, type: 3}
+  - art: {fileID: 21300000, guid: c7a8dd49a3581b54ba18992160e5e377, type: 3}
     body:
       serializedVersion: 2
       x: 1
-      y: 7
-      width: 30
-      height: 25
-    inset: {x: 3, y: 3, z: 3, w: 3}
-  - art: {fileID: 21300000, guid: f910ddf4e0af192489d6635418dedf6f, type: 3}
-    body:
-      serializedVersion: 2
-      x: 0
-      y: 12
-      width: 32
-      height: 12
-    inset: {x: 3, y: 3, z: 3, w: 3}
-  - art: {fileID: 21300000, guid: fe96e90981924e64ea939072e9ae05a8, type: 3}
-    body:
-      serializedVersion: 2
-      x: 0
-      y: 11
-      width: 32
-      height: 19
-    inset: {x: 3, y: 3, z: 3, w: 3}
+      y: 5
+      width: 62
+      height: 23
+    inset: {x: 2, y: 5, z: 5, w: 2}
   pixelFont: {fileID: 0}
   textColor: {r: 0.129, g: 0.121, b: 0.098, a: 1}
   textPointSize: 28
   bubbleMaxWidth: 900
+  emphasis:
+  - color: {r: 0.647, g: 0.212, b: 0.145, a: 1}
+    effect: 0
+  - color: {r: 0.145, g: 0.298, b: 0.588, a: 1}
+    effect: 2
+  - color: {r: 0.804, g: 0.435, b: 0.106, a: 1}
+    effect: 1
+  - color: {r: 0.451, g: 0.18, b: 0.478, a: 1}
+    effect: 3
+  minShowSeconds: 2.6
+  highlightWobble: 0.14
+  highlightSpeed: 5
   bubbleRoom: 1
-  lineWelcome: Sunday. Nobody's in. Good day to learn.
-  linePans: Click a pan to load that color.
-  lineServe: Match their color, then click them.
-  lineLadle: The ladle keeps its color. Serve a whole run.
-  lineOutOfStock: You don't have this one. Hit WE'RE OUT.
-  lineMop: Wrong color. Click the puddle to mop it.
-  lineDone: That's the job. Stay as long as you like.
+  sayWelcome: '*Sunday.* Nobody''s in. Good day to learn.'
+  sayPans: Click a *pan* to load that color.
+  sayServe: '*Match* their color, then click them.'
+  sayLadle: The ladle *keeps* its color. Serve a whole run.
+  sayOutOfStock: You don't have this one. Hit *WE'RE OUT*.
+  sayMop: Wrong color. Click the *puddle* to mop it.
+  sayDone: That's the job. Stay *as long as you like*.
   openDelay: 2.4
+--- !u!114 &499705055
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 499705050}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cd86afef2086f0348abe3c392b61561c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  contenders:
+  - name: OLIVIA
+    portrait: {fileID: 0}
+    boost: 1
+    orders: 4
+    seconds: 16
+  - name: SELENA
+    portrait: {fileID: 0}
+    boost: 2
+    orders: 4
+    seconds: 16
+  - name: JOHN
+    portrait: {fileID: 0}
+    boost: 3
+    orders: 4
+    seconds: 16
+  - name: TANEIM
+    portrait: {fileID: 0}
+    boost: 4
+    orders: 4
+    seconds: 16
+  - name: AL
+    portrait: {fileID: 0}
+    boost: 5
+    orders: 4
+    seconds: 16
+  firstWeek: 2
+  entranceDelay: 4
+  requestSprite: {fileID: 21300000, guid: 9821eb0c04d3a8542ad62b0eebca71ec, type: 3}
+  dropHeight: 9
+  bossScale: 4
+  standOffset: {x: 0, y: 0}
+  shakeAmount: 0.42
+  shakeSeconds: 0.45
+  clearSpeed: 14
 --- !u!1 &500625482
 GameObject:
   m_ObjectHideFlags: 0
@@ -787,7 +832,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: -500
   m_Sprite: {fileID: 21300000, guid: cf756977e17db13438ff7d3b222a691f, type: 3}
-  m_Color: {r: 0.375, g: 0.5, b: 0.3783896, a: 1}
+  m_Color: {r: 0.7169812, g: 0.7169812, b: 0.7169812, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0

@@ -859,6 +859,10 @@ public class MenuUI : MonoBehaviour
         TextMeshProUGUI shadow = RawText(name + " Shadow", rt, size, align, shadowInk);
         Stretch(shadow.rectTransform, shadowOffset, shadowOffset);
 
+        // Same guard as GameUI. Nothing in the menu uses color tags yet, but both halves of
+        // a PixelText share one string, so the first thing that does would come out doubled.
+        shadow.overrideColorTags = true;
+
         TextMeshProUGUI main = RawText(name + " Main", rt, size, align, color);
         Stretch(main.rectTransform, Vector2.zero, Vector2.zero);
 

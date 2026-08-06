@@ -83,7 +83,14 @@ public class PukeManager : MonoBehaviour
         if (puddle == null)
             puddle = Instantiate(puddlePrefab, PuddlePosition, Quaternion.identity, transform);
 
-        puddle.AddPuke(pukePerFailure);
+        // Scaled by John's perk, which halves how fast the floor fills for the week.
+        // Applied here rather than in DayConfig because the mess is not a per-day number:
+        // it is a running total that carries from one kid to the next.
+        float scale = GameManager.Instance != null
+            ? WeekBoost.MessScale(GameManager.Instance.Day)
+            : 1f;
+
+        puddle.AddPuke(pukePerFailure * scale);
     }
 
     // Kept so GameManager does not need changing. The serve delay used to live here, but
