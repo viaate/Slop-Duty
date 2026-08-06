@@ -32,13 +32,19 @@ public class Leaderboard : MonoBehaviour
              "confirmed working, since a silent failure here looks identical to an empty board.")]
     [SerializeField] private bool logRequests = true;
 
-    [Tooltip("dreamlo boards are HTTP only unless SSL is enabled on your account. Turning " +
-             "this off makes it work in the editor, but a WebGL build on itch.io is served " +
-             "over HTTPS and browsers block plain HTTP requests from an HTTPS page, so it " +
-             "will silently fail once published. Test tool only.")]
-    [SerializeField] private bool useHttps = true;
-
-    private string Scheme => useHttps ? "https" : "http";
+    // Always HTTPS, and deliberately not a toggle any more.
+    //
+    // dreamlo serves plain HTTP by default and only enables SSL per account, which is why
+    // this used to be switchable: with SSL off, https simply failed and http was the only
+    // thing that worked in the editor. SSL was enabled on this account on 2026-08-06, so
+    // https now works everywhere.
+    //
+    // The switch is gone rather than just defaulted to true because the "off" position can
+    // never be correct in a shipped build. itch.io serves the game over HTTPS, and browsers
+    // block plain HTTP requests made from an HTTPS page as mixed content, so http could
+    // only ever produce a leaderboard that worked in the editor and silently died once
+    // published. That is the exact failure this field would invite somebody to reintroduce.
+    private const string Scheme = "https";
 
     public bool Configured => !string.IsNullOrEmpty(publicCode) && !string.IsNullOrEmpty(privateCode);
 

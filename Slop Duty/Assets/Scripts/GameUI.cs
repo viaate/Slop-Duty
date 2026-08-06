@@ -40,6 +40,31 @@ public class GameUI : MonoBehaviour
     [Header("Clock")]
     [SerializeField] private float lowTimeSeconds = 10f;
 
+    [Tooltip("How fast the displayed number catches up to the real one. Higher is snappier. " +
+             "12 spins a five second penalty out over roughly a third of a second.")]
+    [SerializeField] private float rollSpeed = 12f;
+
+    [Tooltip("Below this the display stops chasing and reads the clock exactly. Without it " +
+             "the label can still say 3 while the run is already over, which shows the " +
+             "player a death they had no way to see coming.")]
+    [SerializeField] private float snapBelowSeconds = 5f;
+
+    [Header("Time popups")]
+    [Tooltip("Height above the student the number starts at, in screen pixels at 1080p.")]
+    [SerializeField] private float popupHeadroom = 150f;
+
+    [Tooltip("Rewards happen every single serve, so this is deliberately the smaller and " +
+             "faster of the two. If it were as loud as the penalty it would be exhausting " +
+             "inside a minute.")]
+    [SerializeField] private int popupGainSize = 44;
+    [SerializeField] private float popupGainLife = 0.75f;
+    [SerializeField] private float popupGainRise = 90f;
+
+    [Tooltip("Penalties are rare and matter, so this one is allowed to take up space.")]
+    [SerializeField] private int popupLossSize = 66;
+    [SerializeField] private float popupLossLife = 1.15f;
+    [SerializeField] private float popupLossRise = 130f;
+
     [Header("Game over")]
     [Tooltip("Extra gap between stat rows. Pixel fonts have almost no built-in leading, " +
              "so without this the rows read as one solid block.")]
@@ -54,6 +79,16 @@ public class GameUI : MonoBehaviour
     private PixelText quotaLabel;
 
     private GameObject hudRoot;
+    private RectTransform popupLayer;
+    private RectTransform canvasRect;
+    private Camera worldCam;
+
+    // The number on screen, which lags the real one on purpose. See the clock block in
+    // Update. rollReady is false until the first frame of a shift, so a new day snaps to
+    // its starting time instead of winding up to it from whatever was left of the last.
+    private float shownTime;
+    private bool rollReady;
+
     private CanvasGroup cardGroup;
     private RectTransform cardRect;
     private PixelText cardDay;
@@ -127,6 +162,7 @@ public class GameUI : MonoBehaviour
 
         game.DayStarted += ShowDayCard;
         game.RunEnded += ShowGameOver;
+        game.TimeChanged += ShowTimePopup;
 
         ShowDayCard(game.Day);
     }
@@ -137,6 +173,7 @@ public class GameUI : MonoBehaviour
 
         game.DayStarted -= ShowDayCard;
         game.RunEnded -= ShowGameOver;
+        game.TimeChanged -= ShowTimePopup;
     }
 
     // Unscaled throughout, because the run ends by freezing timeScale and a game over
@@ -166,8 +203,36 @@ public class GameUI : MonoBehaviour
         if (timer != null && clockLabel != null)
         {
             float left = timer.TimeRemaining;
-            clockLabel.Text = Mathf.CeilToInt(left).ToString();
 
+            // The label chases the real value rather than printing it. A five second
+            // penalty applied instantly is a jump from 34 to 29, and a jump is close to
+            // invisible: there is no frame in which anything is moving. Spun over a third
+            // of a second it becomes motion, which is the one thing peripheral vision is
+            // genuinely good at catching.
+            //
+            // An exponential chase rather than a fixed tween because penalties can land on
+            // top of each other. This retargets smoothly mid-roll, where a tween would
+            // have to restart from wherever it had got to.
+            if (!rollReady)
+            {
+                shownTime = left;
+                rollReady = true;
+            }
+            else if (left <= snapBelowSeconds || !timer.Running)
+            {
+                shownTime = left;
+            }
+            else
+            {
+                float catchUp = 1f - Mathf.Exp(-rollSpeed * Time.unscaledDeltaTime);
+                shownTime = Mathf.Lerp(shownTime, left, catchUp);
+            }
+
+            clockLabel.Text = Mathf.CeilToInt(Mathf.Max(0f, shownTime)).ToString();
+
+            // Colour and pulse read the true value, never the displayed one. The warning
+            // that you are nearly out has to be honest even while the digits are still
+            // catching up to a penalty.
             bool low = left <= lowTimeSeconds && timer.Running;
             clockLabel.Tint = low ? danger : ink;
 
@@ -181,10 +246,70 @@ public class GameUI : MonoBehaviour
         // and a line of text shouting over the top was redundant.
     }
 
+    // --- floating time numbers ---
+
+    private void ShowTimePopup(float delta, Vector2 worldPoint)
+    {
+        if (popupLayer == null || canvasRect == null) return;
+
+        if (worldCam == null) worldCam = FindWorldCamera();
+        if (worldCam == null) return;
+
+        // A reward the clock cap swallowed whole. Saying so outright is more use than a
+        // "+0" or a silent nothing, both of which read as the feature being broken rather
+        // than as the clock being full.
+        bool wasted = Mathf.Abs(delta) < 0.05f;
+        bool loss = delta < 0f && !wasted;
+
+        string label = wasted ? "MAX" : (loss ? "-" : "+") + Mathf.Abs(delta).ToString("0.#");
+
+        // One decimal, and only when there is one. Rewards are fractional on most days, so
+        // rounding 2.5 up to "+3" would promise a second the clock never gave.
+        Color tint = wasted ? inkDim : (loss ? danger : accent);
+
+        // Screen space overlay, so the camera argument is deliberately null. Passing the
+        // world camera there applies its projection a second time and puts every number in
+        // the wrong place.
+        Vector2 screen = worldCam.WorldToScreenPoint(worldPoint);
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screen, null,
+                                                                out Vector2 local);
+
+        PixelText text = MakeText("Time Popup", popupLayer, loss ? popupLossSize : popupGainSize,
+                              TextAlignmentOptions.Center, tint, new Vector2(0.5f, 0.5f),
+                              local + new Vector2(0f, popupHeadroom), new Vector2(400f, 90f));
+        text.Text = label;
+
+        TimePopup popup = text.Root.AddComponent<TimePopup>();
+        popup.Play(loss ? popupLossRise : popupGainRise,
+                   loss ? popupLossLife : popupGainLife,
+                   loss ? 1.7f : 1.35f);
+    }
+
+    // Camera.main depends on the MainCamera tag, which is easy to lose on a scene edit.
+    // The fallback skips any camera that draws nothing, because LetterboxCamera parents a
+    // second camera whose only job is clearing the bars and whose projection would place
+    // every popup wrongly.
+    private Camera FindWorldCamera()
+    {
+        if (Camera.main != null) return Camera.main;
+
+        foreach (Camera c in Camera.allCameras)
+        {
+            if (c.cullingMask != 0) return c;
+        }
+
+        return null;
+    }
+
     // --- day card ---
 
     private void ShowDayCard(int day)
     {
+        // Snaps the clock display to whatever the new shift starts on. Left chasing, it
+        // would spend the first half second winding between the old day's leftover time
+        // and the new one, which looks like the clock is still counting the last day.
+        rollReady = false;
+
         if (cardDay == null) return;
 
         cardDay.Text = DayConfig.NameFor(day);
@@ -375,6 +500,7 @@ public class GameUI : MonoBehaviour
         canvasGo.AddComponent<GraphicRaycaster>();
 
         RectTransform root = canvasGo.GetComponent<RectTransform>();
+        canvasRect = root;
 
         BuildHud(root);
         BuildDayCard(root);
@@ -402,6 +528,14 @@ public class GameUI : MonoBehaviour
         quotaLabel = MakeText("Quota", root, 22, TextAlignmentOptions.TopRight, inkDim,
                           new Vector2(1f, 1f), new Vector2(-40f, -100f), new Vector2(400f, 30f));
 
+        // Created last, so its children draw over the labels above. Sibling order is what
+        // decides overlap on a canvas, and a popup passing behind the clock would look
+        // like a glitch rather than a layer.
+        GameObject layer = new GameObject("Time Popups", typeof(RectTransform));
+        layer.transform.SetParent(root, false);
+
+        popupLayer = layer.GetComponent<RectTransform>();
+        Stretch(popupLayer, Vector2.zero, Vector2.zero);
     }
 
     private void BuildDayCard(RectTransform root)

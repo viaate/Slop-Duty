@@ -242,7 +242,11 @@ public class IndividualStudent : MonoBehaviour
         }
 
         GameManager game = GameManager.Instance;
-        float where = transform.position.x;
+
+        // Full position, not just the x it used to pass. The floating time number is
+        // anchored here, and reading the height off the student keeps it over their head
+        // rather than at a guessed y that would drift the moment anyone moves the counter.
+        Vector2 where = transform.position;
 
         if (game != null)
         {

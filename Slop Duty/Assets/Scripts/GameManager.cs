@@ -37,6 +37,15 @@ public class GameManager : MonoBehaviour
     // Fired once, when the clock runs out.
     public event System.Action RunEnded;
 
+    // Fired whenever a serve moves the clock. Carries the change the timer actually made,
+    // signed, along with the world position of the student who caused it, so the interface
+    // can float the number where the player was already looking.
+    //
+    // An event rather than GameManager reaching into the UI directly, matching the two
+    // above: the manager stays unaware that any interface exists, and the popups can be
+    // switched off by simply not subscribing.
+    public event System.Action<float, Vector2> TimeChanged;
+
     public DayConfig Today { get; private set; }
     public int Day { get; private set; }
     public bool RunOver { get; private set; }
@@ -111,26 +120,28 @@ public class GameManager : MonoBehaviour
         DayStarted?.Invoke(Day);
     }
 
-    // --- called by IndividualStudent. worldX is unused now that every mess piles into
-    //     one puddle, but it is kept on the signature so a future version can place
-    //     splatter where the kid was standing. ---
+    // --- called by IndividualStudent. `where` is the student's world position: the mess
+    //     still all piles into one puddle regardless, but the floating time number is
+    //     anchored to it so it appears over the kid who caused it. ---
 
-    public void ReportCorrect(float worldX)
+    public void ReportCorrect(Vector2 where)
     {
         if (RunOver) return;
 
         Stats.served++;
-        if (timer != null) timer.AddTime(Today.reward);
+        Bank(timer != null ? timer.AddTime(Today.reward) : 0f, where);
+
         if (puke != null) puke.NoteServe();
+
         CountResolution();
     }
 
-    public void ReportWrong(float worldX)
+    public void ReportWrong(Vector2 where)
     {
         if (RunOver) return;
 
         Stats.wrongColor++;
-        if (timer != null) timer.SubtractTime(Today.penalty);
+        Bank(timer != null ? timer.SubtractTime(Today.penalty) : 0f, where);
 
         if (puke != null)
         {
@@ -141,12 +152,12 @@ public class GameManager : MonoBehaviour
         CountResolution();
     }
 
-    public void ReportWalkOut(float worldX)
+    public void ReportWalkOut(Vector2 where)
     {
         if (RunOver) return;
 
         Stats.walkedOut++;
-        if (timer != null) timer.SubtractTime(Today.penalty);
+        Bank(timer != null ? timer.SubtractTime(Today.penalty) : 0f, where);
 
         if (puke != null)
         {
@@ -156,6 +167,28 @@ public class GameManager : MonoBehaviour
 
         CountResolution();
     }
+
+    // One funnel for every clock change a serve can cause, so the popup and the sound can
+    // never disagree with each other or with the timer.
+    //
+    // Takes the value the timer returned rather than the value it was asked for. On a
+    // clock already at maxTime a correct serve genuinely banks nothing, and announcing a
+    // reward that did not happen would teach the player the wrong thing about when to
+    // stop hoarding.
+    private void Bank(float delta, Vector2 where)
+    {
+        if (Mathf.Approximately(delta, 0f) && !ClockFull) return;
+
+        TimeChanged?.Invoke(delta, where);
+
+        if (delta < 0f) Sfx.TimeLost();
+        else Sfx.TimeGained();
+    }
+
+    // True when a reward would be thrown away. Lets the interface say so out loud instead
+    // of showing a silent nothing that looks identical to a bug.
+    private bool ClockFull => timer != null && timer.Running
+                              && timer.TimeRemaining >= timer.MaxTime - 0.01f;
 
     private void CountResolution()
     {

@@ -36,16 +36,28 @@ public class LevelTimer : MonoBehaviour
 
     public void Stop() => Running = false;
 
-    public void AddTime(float timeToAdd)
+    // Both of these return the change they actually made, signed, which is not the same
+    // as the change they were asked for: the scales stretch it and maxTime can swallow
+    // most of a reward outright. The floating "+3" is built from this return value rather
+    // than from the request, so it can never claim time the clock did not really get.
+    public float AddTime(float timeToAdd)
     {
-        if (!Running) return;
+        if (!Running) return 0f;
+
+        float before = TimeRemaining;
         TimeRemaining = Mathf.Min(TimeRemaining + (timeToAdd * positiveTimeScale), maxTime);
+
+        return TimeRemaining - before;
     }
 
-    public void SubtractTime(float timeToSubtract)
+    public float SubtractTime(float timeToSubtract)
     {
-        if (!Running) return;
+        if (!Running) return 0f;
+
+        float before = TimeRemaining;
         Drain(timeToSubtract * negativeTimeScale);
+
+        return TimeRemaining - before;
     }
 
     public void SetTimeScales(float posScale, float negScale)
