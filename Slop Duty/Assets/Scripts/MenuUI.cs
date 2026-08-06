@@ -53,6 +53,57 @@ public class MenuUI : MonoBehaviour
         public float fps;
     }
 
+    // A teacher in a bottom corner, popping up now and then.
+    //
+    // Rise and Duck are for somebody drawn as a peek, like Taneim. Leave them empty and set
+    // Still instead, and the same peek is done by sliding the picture up from below the
+    // screen edge rather than by frames. Both read as the same gag, so one animated teacher
+    // and one flat one still look like a matching pair.
+    [System.Serializable]
+    public class Teacher
+    {
+        public string name;
+
+        [Tooltip("Coming up, in order. Leave empty to slide instead of animating.")]
+        public Sprite[] rise;
+
+        [Tooltip("Going back down, in order. The last frame is what 'hidden' looks like.")]
+        public Sprite[] duck;
+
+        [Tooltip("Used only when there are no frames. The whole picture slides instead.")]
+        public Sprite still;
+
+        public float fps = 12f;
+
+        [Tooltip("Right hand corner instead of the left.")]
+        public bool rightSide;
+
+        [Tooltip("How much of him stays showing when nobody is hovering, as a fraction of " +
+                 "his height. This is the hint that there is anything there to hover at " +
+                 "all. Ignored when there are frames, since a drawn peek already decides " +
+                 "for itself how much of him is left in shot.\n\n" +
+                 "0.31 matches Taneim: his resting frame leaves 9 of its 32 rows showing, " +
+                 "which is 0.281, and the extra 0.03 covers the transparent row above Al's " +
+                 "head. Re-measure if either drawing changes.")]
+        [Range(0f, 0.6f)] public float peekAtRest = 0.31f;
+    }
+
+    [Header("Teachers")]
+    [Tooltip("One per bottom corner. Hidden until you put the pointer in their corner, " +
+             "then they peek up and duck away again when it leaves.")]
+    [SerializeField]
+    private Teacher[] teachers =
+    {
+        new Teacher { name = "MR TANEIM", rightSide = false },
+        new Teacher { name = "", rightSide = true },
+    };
+
+    [Tooltip("How tall a teacher is drawn, in reference pixels.")]
+    [SerializeField] private float teacherPixels = 260f;
+
+    [Tooltip("Gap from the screen corner, so they are not jammed against the edge.")]
+    [SerializeField] private float teacherInset = 24f;
+
     [Header("Team")]
     [SerializeField]
     private TeamMember[] team =
@@ -468,6 +519,7 @@ public class MenuUI : MonoBehaviour
             .onClick.AddListener(ToggleSettings);
 
         BuildTeam(content);
+        BuildTeachers(content);
 
         PixelText best = MakeText("Best", content, 24, TextAlignmentOptions.Bottom, inkDim,
                                   new Vector2(0.5f, 0f), new Vector2(0f, teamRowY - 108f), new Vector2(900f, 34f));
@@ -478,6 +530,81 @@ public class MenuUI : MonoBehaviour
         BuildBoardPanel(root);
         BuildSettingsPanel(root);
         BuildAccessPanel(root);
+    }
+
+    // Both teachers, one per bottom corner.
+    //
+    // Anchored to the corners themselves rather than offset from the middle, so they stay
+    // put when the window changes shape instead of drifting toward the team block.
+    private void BuildTeachers(RectTransform parent)
+    {
+        if (teachers == null) return;
+
+        foreach (Teacher t in teachers)
+        {
+            if (t == null) continue;
+
+            bool framed = t.rise != null && t.rise.Length > 0;
+            if (!framed && t.still == null) continue;
+
+            Vector2 corner = new Vector2(t.rightSide ? 1f : 0f, 0f);
+
+            // The zone is what catches the pointer, and it never moves. The character
+            // himself cannot be the hover target: he is hidden until you hover him, so
+            // there would be nothing there to hover in the first place. Invisible, but an
+            // Image at zero alpha still takes raycasts, which is the whole point of it.
+            GameObject zone = new GameObject($"Teacher {t.name}", typeof(RectTransform));
+            zone.transform.SetParent(parent, false);
+
+            RectTransform zoneRect = zone.GetComponent<RectTransform>();
+            zoneRect.anchorMin = corner;
+            zoneRect.anchorMax = corner;
+            zoneRect.pivot = corner;
+            zoneRect.sizeDelta = new Vector2(teacherPixels, teacherPixels);
+            zoneRect.anchoredPosition = new Vector2(t.rightSide ? -teacherInset : teacherInset, 0f);
+
+            Image catcher = zone.AddComponent<Image>();
+            catcher.color = new Color(0f, 0f, 0f, 0f);
+            catcher.raycastTarget = true;
+
+            // The picture is a child so it can slide out from under the zone without
+            // dragging the pointer target off screen with it.
+            GameObject artGo = new GameObject("Art", typeof(RectTransform));
+            artGo.transform.SetParent(zone.transform, false);
+
+            RectTransform rt = artGo.GetComponent<RectTransform>();
+            Stretch(rt, Vector2.zero, Vector2.zero);
+
+            Image art = artGo.AddComponent<Image>();
+            art.raycastTarget = false;
+            art.preserveAspect = true;
+            art.sprite = framed ? t.rise[0] : t.still;
+
+            // Parented to the menu rather than to the teacher, so the name holds still
+            // while he sinks inside his own box. It fades with him instead of moving.
+            GameObject nameGo = new GameObject($"Teacher {t.name} Name", typeof(RectTransform));
+            nameGo.transform.SetParent(parent, false);
+
+            CanvasGroup group = nameGo.AddComponent<CanvasGroup>();
+            group.alpha = 0f;
+            group.blocksRaycasts = false;
+
+            RectTransform nameRect = nameGo.GetComponent<RectTransform>();
+            Anchor(nameRect, corner,
+                   new Vector2(t.rightSide ? -teacherInset : teacherInset, teacherPixels + 8f),
+                   new Vector2(teacherPixels, 30f));
+
+            // Exactly as wide as he is, so a centred name sits over him rather than being
+            // nudged toward the middle of the screen by a wider box.
+            PixelText label = MakeText($"Teacher {t.name} Text", nameRect, 22,
+                                       TextAlignmentOptions.Center, inkDim,
+                                       new Vector2(0.5f, 0.5f), Vector2.zero,
+                                       new Vector2(teacherPixels, 30f));
+            label.Text = t.name;
+
+            zone.AddComponent<MenuPeeker>().Setup(rt, group, t.rise, t.duck, t.still, t.fps,
+                                                  teacherPixels, t.peekAtRest);
+        }
     }
 
     // The credits line, but as the three of you standing in the canteen. Replaces the

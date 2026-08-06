@@ -230,6 +230,36 @@ MonoBehaviour:
   titleBob: 8
   titleBobSpeed: 1.4
   rowSpacing: 30
+  teachers:
+  - name: TANEIM
+    rise:
+    - {fileID: 21300000, guid: 9fa8367010550254494a730a1b80d647, type: 3}
+    - {fileID: 21300000, guid: d8d46f47b6dd06840bc33df7268a7e8d, type: 3}
+    - {fileID: 21300000, guid: b3d2dce9281fbb741aeacda433a113b7, type: 3}
+    - {fileID: 21300000, guid: 0d14f57ba7250324eb683da0f1f8b1c2, type: 3}
+    - {fileID: 21300000, guid: 6faffab5e7a24dc4f88d5e1aa00454cf, type: 3}
+    - {fileID: 21300000, guid: 5f43fdb36302bd94b8055c348f35a936, type: 3}
+    - {fileID: 21300000, guid: 9aba00ce328f92344b597b917ccc2de1, type: 3}
+    duck:
+    - {fileID: 21300000, guid: ff3fa0bbcbf86814dbd6d4a6ef845257, type: 3}
+    - {fileID: 21300000, guid: 9d33a11136221764cbedc1c95bd623eb, type: 3}
+    - {fileID: 21300000, guid: 4ffb982dab0533245bef1bf5a3bf4765, type: 3}
+    - {fileID: 21300000, guid: f134c38047e09d94ba47586cd5e024d2, type: 3}
+    - {fileID: 21300000, guid: 997e5b4d9e7e2404cbf415db1873e33a, type: 3}
+    - {fileID: 21300000, guid: 1d33b0e19c492e641ad5fe3cc26afab8, type: 3}
+    - {fileID: 21300000, guid: 0a436c39c79a7914682300ece027fa1e, type: 3}
+    - {fileID: 21300000, guid: fd80cf426a2d148458b65a84a0818464, type: 3}
+    still: {fileID: 21300000, guid: 9fa8367010550254494a730a1b80d647, type: 3}
+    fps: 10
+    rightSide: 0
+  - name: Al
+    rise: []
+    duck: []
+    still: {fileID: 21300000, guid: a4bd36b496734244190c5038dc5ef346, type: 3}
+    fps: 12
+    rightSide: 1
+  teacherPixels: 260
+  teacherInset: 24
   team:
   - name: OLIVIA GONSHER
     frames:
@@ -285,7 +315,6 @@ MonoBehaviour:
   privateCode: Fxmg60hoVUm1jk_2Cl6zfQs-JVvLrJs0CmQeUXjhJ3VQ
   topCount: 10
   logRequests: 1
-  useHttps: 1
 --- !u!1 &1481629154
 GameObject:
   m_ObjectHideFlags: 0

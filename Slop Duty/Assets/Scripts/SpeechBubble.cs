@@ -49,11 +49,18 @@ public class SpeechBubble : MonoBehaviour
     private CanvasGroup group;
     private TextMeshProUGUI label;
 
+    private TextFlair flair;
+
     private Vector4 inset;
     private Vector2 bodySize;
     private float maxWidth;
     private int extraSteps;
+    private int baseFontSize = 28;
     private string content = string.Empty;
+    private Emphasis[] palette;
+    private int paletteStart;
+    private float wobble;
+    private float wobbleSpeed = 5f;
     private int refits;
     private bool closing;
 
@@ -94,11 +101,28 @@ public class SpeechBubble : MonoBehaviour
 
         if (font != null) label.font = font;
 
+        baseFontSize = fontSize;
         label.fontSize = fontSize;
         label.color = textColor;
         label.alignment = TextAlignmentOptions.Center;
         label.raycastTarget = false;
         label.enableWordWrapping = true;
+
+        flair = label.gameObject.AddComponent<TextFlair>();
+    }
+
+    // Wobble is a fraction of the point size rather than a number of pixels, so the motion
+    // stays proportional to the writing instead of turning into a jolt on small text.
+    //
+    // start decides which entry the first marked word takes. The tutorial walks it on with
+    // every tooltip, which is what stops six lines in a row all coming out the same colour
+    // doing the same thing.
+    public void SetFlair(Emphasis[] styles, int start, float wobbleFraction, float speed)
+    {
+        palette = styles;
+        paletteStart = start;
+        wobble = Mathf.Max(0f, wobbleFraction) * baseFontSize;
+        wobbleSpeed = speed;
     }
 
     // Trimmed to the bubble itself. Sprite.Create does not need the texture to be readable,
@@ -134,8 +158,16 @@ public class SpeechBubble : MonoBehaviour
     {
         if (label == null) return;
 
-        string text = content;
+        // Markers become color tags here, before anything is measured. Tags carry no width
+        // of their own, so the tagged string measures the same as the plain one, but it has
+        // to be the string that gets measured or the character indices the wobble uses stop
+        // lining up with what is on screen.
+        string text = flair != null ? flair.Apply(content, palette, paletteStart, wobble, wobbleSpeed) : content;
         label.text = text;
+
+        // Reset before measuring. Fit runs again on the next couple of frames, and without
+        // this a size shrunk on one pass would be shrunk again on the next.
+        label.fontSize = baseFontSize;
 
         // Forces the glyphs to be built before anything is measured. Without it the very
         // first measurement in a scene can come back from a cold font atlas and be wrong,
@@ -181,6 +213,21 @@ public class SpeechBubble : MonoBehaviour
                label.GetPreferredValues(text, innerCols * scale, 0f).y > innerRows * scale)
         {
             scale++;
+        }
+
+        // Second backstop, for wording too long to fit even at full width.
+        //
+        // The loop above can only grow the bubble, and the bubble stops growing at Bubble
+        // Max Width. Past that it used to just give up and let the writing spill out over
+        // the edge of the tray, which is what "sometimes it doesn't fit" was. Shrinking the
+        // point size is the only move left once the box cannot get any bigger, so it takes
+        // it, in whole points, and stops as soon as the text is inside.
+        int points = baseFontSize;
+
+        while (points > 8 && label.GetPreferredValues(text, innerCols * scale, 0f).y > innerRows * scale)
+        {
+            points -= 2;
+            label.fontSize = points;
         }
 
         // Grown past the tightest fit so the writing sits in the bubble rather than filling

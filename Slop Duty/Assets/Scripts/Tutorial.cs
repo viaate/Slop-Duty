@@ -36,6 +36,31 @@ public class Tutorial : MonoBehaviour
     [Tooltip("Widest a bubble may get before the writing wraps, in 1080p reference pixels.")]
     [SerializeField] private float bubbleMaxWidth = 900f;
 
+    [Header("Emphasis")]
+    [Tooltip("Looks for words wrapped in *asterisks*. Each marked word takes the next entry " +
+             "and the list carries on across tooltips, so no two lines in a row come out " +
+             "the same. Colors are picked to sit on the pale tray without competing with " +
+             "the slop colors on the counter.")]
+    [SerializeField]
+    private Emphasis[] emphasis =
+    {
+        new Emphasis { color = new Color(0.647f, 0.212f, 0.145f), effect = TextEffect.Wave },
+        new Emphasis { color = new Color(0.145f, 0.298f, 0.588f), effect = TextEffect.Pop },
+        new Emphasis { color = new Color(0.804f, 0.435f, 0.106f), effect = TextEffect.Shake },
+        new Emphasis { color = new Color(0.451f, 0.180f, 0.478f), effect = TextEffect.Tilt },
+    };
+
+    [Tooltip("Shortest a tooltip may stay up before the next one is allowed to replace it. " +
+             "Beats fire off game events, and two of them landing close together used to " +
+             "flash a line by before it could be read.")]
+    [SerializeField] private float minShowSeconds = 2.6f;
+
+    [Tooltip("How far highlighted letters bob, as a fraction of the point size. Kept small " +
+             "on purpose: this is meant to catch the eye, not to be read through.")]
+    [SerializeField, Range(0f, 0.5f)] private float highlightWobble = 0.14f;
+
+    [SerializeField, Range(1f, 14f)] private float highlightSpeed = 5f;
+
     [Tooltip("Extra room around the writing, in whole scale steps. 0 is the tightest fit " +
              "the text allows. Each step grows the bubble only, never the text, and stays " +
              "on whole pixels so it cannot go soft.")]
@@ -44,27 +69,31 @@ public class Tutorial : MonoBehaviour
     // Short on purpose. The bubble is scaled whole, so it can only grow to fit the writing,
     // never reshape around it: every extra clause makes the bubble physically bigger until
     // it is covering the counter it is trying to explain. One idea per bubble.
+    //
+    // Wrap a word in *asterisks* to color it and make it bob. One or two per line at most.
+    // The whole point is that the marked word is the thing to do, and marking half the
+    // sentence means marking nothing.
     [Header("Wording")]
-    [SerializeField, TextArea(2, 3)] private string lineWelcome =
-        "Sunday. Nobody's in. Good day to learn.";
+    [SerializeField, TextArea(2, 3)] private string sayWelcome =
+        "*Sunday.* Nobody's in. Good day to learn.";
 
-    [SerializeField, TextArea(2, 3)] private string linePans =
-        "Click a pan to load that color.";
+    [SerializeField, TextArea(2, 3)] private string sayPans =
+        "Click a *pan* to load that color.";
 
-    [SerializeField, TextArea(2, 3)] private string lineServe =
-        "Match their color, then click them.";
+    [SerializeField, TextArea(2, 3)] private string sayServe =
+        "*Match* their color, then click them.";
 
-    [SerializeField, TextArea(2, 3)] private string lineLadle =
-        "The ladle keeps its color. Serve a whole run.";
+    [SerializeField, TextArea(2, 3)] private string sayLadle =
+        "The ladle *keeps* its color. Serve a whole run.";
 
-    [SerializeField, TextArea(2, 3)] private string lineOutOfStock =
-        "You don't have this one. Hit WE'RE OUT.";
+    [SerializeField, TextArea(2, 3)] private string sayOutOfStock =
+        "You don't have this one. Hit *WE'RE OUT*.";
 
-    [SerializeField, TextArea(2, 3)] private string lineMop =
-        "Wrong color. Click the puddle to mop it.";
+    [SerializeField, TextArea(2, 3)] private string sayMop =
+        "Wrong color. Click the *puddle* to mop it.";
 
-    [SerializeField, TextArea(2, 3)] private string lineDone =
-        "That's the job. Stay as long as you like.";
+    [SerializeField, TextArea(2, 3)] private string sayDone =
+        "That's the job. Stay *as long as you like*.";
 
     [Tooltip("Seconds after the shift begins before the first bubble, so it does not " +
              "collide with the day card.")]
@@ -94,6 +123,10 @@ public class Tutorial : MonoBehaviour
     private Step step = Step.Waiting;
     private float clock;
     private bool taughtMopping;
+
+    private int emphasisCursor;
+    private float shownFor;
+    private string queued;
 
     private void Awake() => BuildCanvas();
 
@@ -153,7 +186,7 @@ public class Tutorial : MonoBehaviour
         if (!correct && !taughtMopping)
         {
             taughtMopping = true;
-            Say(lineMop);
+            Say(sayMop);
 
             // The step is deliberately not advanced, so whatever was being taught is still
             // the current lesson and the next kid of that kind still counts toward it. This
@@ -171,10 +204,14 @@ public class Tutorial : MonoBehaviour
         if (step == Step.Off) return;
 
         clock += Time.unscaledDeltaTime;
+        shownFor += Time.unscaledDeltaTime;
 
         // The pans can be relaid out when a palette regenerates, so the parking spot is
         // recomputed rather than cached.
         if (bubble != null) Reposition();
+
+        // Whatever was held back while the last line served its minimum.
+        if (queued != null && shownFor >= minShowSeconds) Show(queued);
 
         switch (step)
         {
@@ -227,42 +264,71 @@ public class Tutorial : MonoBehaviour
         switch (next)
         {
             case Step.Welcome:
-                Say(lineWelcome);
+                Say(sayWelcome);
                 break;
 
             case Step.Pans:
-                Say(linePans);
+                Say(sayPans);
                 break;
 
             case Step.Serve:
-                Say(lineServe);
+                Say(sayServe);
                 break;
 
             case Step.Ladle:
-                Say(lineLadle);
+                Say(sayLadle);
                 break;
 
             case Step.OutOfStock:
-                Say(lineOutOfStock);
+                Say(sayOutOfStock);
                 break;
 
             case Step.Done:
-                Say(lineDone);
+                Say(sayDone);
                 break;
         }
     }
 
+    // Held back rather than shown immediately when the one on screen is still new.
+    //
+    // The beats fire off game events, and two landing close together used to flash a line
+    // past before anybody could read it. Queueing means the newer line still wins, it just
+    // waits its turn. Only one is ever held, so a burst collapses to the last thing said
+    // rather than making the player sit through a backlog.
     private void Say(string text)
+    {
+        if (bubble != null && shownFor < minShowSeconds)
+        {
+            queued = text;
+            return;
+        }
+
+        Show(text);
+    }
+
+    private void Show(string text)
     {
         Dismiss();
 
         SpeechBubble.Style style = WidestStyle();
         if (style == null) return;
 
+        queued = null;
+        shownFor = 0f;
+
         GameObject go = new GameObject("Tooltip", typeof(RectTransform));
         bubble = go.AddComponent<SpeechBubble>();
         bubble.Build(canvasRect, style, Font(), textColor, textPointSize, bubbleMaxWidth, bubbleRoom);
+
+        // Before SetText, not after. The markers turn into color tags during sizing, and
+        // the tagged string is what has to be measured, or the character positions the
+        // wobble reads would belong to a different sentence than the one on screen.
+        bubble.SetFlair(emphasis, emphasisCursor, highlightWobble, highlightSpeed);
         bubble.SetText(text);
+
+        // Walked on per tooltip, not per word, so a line with one marked word still looks
+        // different from the line before it.
+        emphasisCursor++;
 
         Reposition();
     }

@@ -385,14 +385,7 @@ MonoBehaviour:
       y: 7
       width: 30
       height: 25
-    tail:
-      serializedVersion: 2
-      x: 4
-      y: 2
-      width: 9
-      height: 6
-    border: {x: 7, y: 7, z: 7, w: 7}
-    tailAlongBottom: 0.23
+    inset: {x: 3, y: 3, z: 3, w: 3}
   - art: {fileID: 21300000, guid: f910ddf4e0af192489d6635418dedf6f, type: 3}
     body:
       serializedVersion: 2
@@ -400,14 +393,7 @@ MonoBehaviour:
       y: 12
       width: 32
       height: 12
-    tail:
-      serializedVersion: 2
-      x: 0
-      y: 6
-      width: 9
-      height: 6
-    border: {x: 4, y: 4, z: 4, w: 4}
-    tailAlongBottom: 0.13
+    inset: {x: 3, y: 3, z: 3, w: 3}
   - art: {fileID: 21300000, guid: fe96e90981924e64ea939072e9ae05a8, type: 3}
     body:
       serializedVersion: 2
@@ -415,31 +401,19 @@ MonoBehaviour:
       y: 11
       width: 32
       height: 19
-    tail:
-      serializedVersion: 2
-      x: 11
-      y: 4
-      width: 11
-      height: 7
-    border: {x: 8, y: 6, z: 8, w: 9}
-    tailAlongBottom: 0.5
+    inset: {x: 3, y: 3, z: 3, w: 3}
   pixelFont: {fileID: 0}
   textColor: {r: 0.129, g: 0.121, b: 0.098, a: 1}
-  textSize: 34
-  textInset: 28
+  textPointSize: 28
   bubbleMaxWidth: 900
-  gamePixelsPerUnit: 32
-  artScale: 3
-  welcomeText: Sunday. Nobody comes in. Good day to learn the job.
-  pansText: These are your pans. Click one to load your ladle with that color.
-  serveText: This one wants that color. Load the pan that matches, then click them.
-  ladleText: Nice. The ladle keeps its color, so you can serve a whole run without
-    re-clicking.
-  outOfStockText: You have not got this color. Do not guess. Hit SORRY, WE'RE OUT.
-  mopText: Wrong color, so up it comes. Mess slows everyone down. Click the puddle
-    to mop it.
-  doneText: That is the whole job. Sunday never ends on its own, so stay as long
-    as you like.
+  bubbleRoom: 1
+  lineWelcome: Sunday. Nobody's in. Good day to learn.
+  linePans: Click a pan to load that color.
+  lineServe: Match their color, then click them.
+  lineLadle: The ladle keeps its color. Serve a whole run.
+  lineOutOfStock: You don't have this one. Hit WE'RE OUT.
+  lineMop: Wrong color. Click the puddle to mop it.
+  lineDone: That's the job. Stay as long as you like.
   openDelay: 2.4
 --- !u!1 &500625482
 GameObject:
@@ -754,6 +728,90 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   designWidth: 18
   designHeight: 10
+--- !u!1 &630915739
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 630915741}
+  - component: {fileID: 630915740}
+  m_Layer: 0
+  m_Name: Background
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!212 &630915740
+SpriteRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 630915739}
+  m_Enabled: 1
+  m_CastShadows: 0
+  m_ReceiveShadows: 0
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 0
+  m_RayTraceProcedural: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 0
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: -500
+  m_Sprite: {fileID: 21300000, guid: cf756977e17db13438ff7d3b222a691f, type: 3}
+  m_Color: {r: 0.375, g: 0.5, b: 0.3783896, a: 1}
+  m_FlipX: 0
+  m_FlipY: 0
+  m_DrawMode: 0
+  m_Size: {x: 1.28, y: 0.64}
+  m_AdaptiveModeThreshold: 0.5
+  m_SpriteTileMode: 0
+  m_WasSpriteAssigned: 1
+  m_MaskInteraction: 0
+  m_SpriteSortPoint: 0
+--- !u!4 &630915741
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 630915739}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.03, y: 0.03, z: 0}
+  m_LocalScale: {x: 4.5943527, y: 5.4643, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &722934937
 GameObject:
   m_ObjectHideFlags: 0
@@ -1168,7 +1226,7 @@ Transform:
   m_GameObject: {fileID: 1135509283}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.0236, y: -2.84, z: 0}
+  m_LocalPosition: {x: 0, y: -2.84, z: 0}
   m_LocalScale: {x: 16, y: 16, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1581,3 +1639,4 @@ SceneRoots:
   - {fileID: 722934940}
   - {fileID: 1995097748}
   - {fileID: 60593416}
+  - {fileID: 630915741}
