@@ -463,7 +463,7 @@ MonoBehaviour:
     orders: 4
     seconds: 16
   - name: AL
-    portrait: {fileID: 21300000, guid: a4bd36b496734244190c5038dc5ef346, type: 3}
+    portrait: {fileID: 21300000, guid: 3ea0308436764c143a1583b45cf3029c, type: 3}
     partner: {fileID: 0}
     aura: {fileID: 0}
     boost: 5
@@ -1634,6 +1634,7 @@ MonoBehaviour:
   offset: {x: 0.35, y: -0.35}
   scale: 0.6
   hideWhenEmpty: 1
+  canvasOrder: 4000
 --- !u!1 &1995097746
 GameObject:
   m_ObjectHideFlags: 0

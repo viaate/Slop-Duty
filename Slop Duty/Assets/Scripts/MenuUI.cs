@@ -70,8 +70,20 @@ public class MenuUI : MonoBehaviour
         [Tooltip("Going back down, in order. The last frame is what 'hidden' looks like.")]
         public Sprite[] duck;
 
-        [Tooltip("Used only when there are no frames. The whole picture slides instead.")]
+        [Tooltip("Used only when there are no frames. The whole picture slides instead.\n\n" +
+                 "Ignored if Arrived is filled in, because that sequence's first frame is " +
+                 "already what he looks like at rest.")]
         public Sprite still;
+
+        [Tooltip("Played once he has finished coming up, in order, then held on the last " +
+                 "frame. This is the little performance he gives when he gets there: Al " +
+                 "flicks his eyes about and then scratches his head.\n\n" +
+                 "Nothing in here should move him up or down. Arriving is the slide's job, " +
+                 "or Rise and Duck's. These frames are only what he does once he is there, " +
+                 "so they should all be drawn in the same position.\n\n" +
+                 "Taking the pointer away plays it backwards at the same speed rather than " +
+                 "cutting straight back to the first frame, so no return frames are needed.")]
+        public Sprite[] arrived;
 
         public float fps = 12f;
 
@@ -153,8 +165,17 @@ public class MenuUI : MonoBehaviour
     private GameObject boardPanel;
     private GameObject settingsPanel;
     private GameObject accessPanel;
+    private GameObject namePanel;
     private TMP_InputField nameField;
+    private TMP_InputField nameEntryField;
     private PixelText nameHint;
+    private PixelText nameEntryHint;
+
+    // Which button sent the player to the name prompt, remembered across the detour.
+    //
+    // The old redirect returned out of Leave before its argument was ever used, so a player
+    // sent to the prompt from TRAINING SHIFT came back and started the ordinary week.
+    private int pendingTutorial;
     private PixelText volumeReadout;
     private PixelText accessNote;
     private HoverTint[] visionTints;
@@ -233,11 +254,10 @@ public class MenuUI : MonoBehaviour
         // The name only used to be collected on the game over screen, next to the submit
         // button, which is the worst possible moment: the run is over, the player is reading
         // their score, and being asked to type is an obstacle between them and trying again.
-        // Settings is already open here and already has the field, so it doubles as the
-        // prompt rather than needing a screen of its own.
         if (string.IsNullOrWhiteSpace(HighScores.PlayerName))
         {
-            OpenSettingsForName();
+            pendingTutorial = tutorialFlag;
+            OpenNamePrompt();
             return;
         }
 
@@ -264,22 +284,73 @@ public class MenuUI : MonoBehaviour
         if (opening) RequestBoard();
     }
 
-    private void OpenSettingsForName()
+    // A screen of its own rather than a trip to settings.
+    //
+    // Settings already had the field, so it used to double as the prompt. That saved a panel
+    // and cost the moment: the one question that has to be answered arrived surrounded by a
+    // volume slider, an accessibility button and a heading that said SETTINGS, so the player
+    // had to work out which box mattered and then find their own way back. This asks the
+    // question on its own and starts the shift as soon as it is answered.
+    private void OpenNamePrompt()
     {
         menuRoot.SetActive(false);
-        settingsPanel.SetActive(true);
+        namePanel.SetActive(true);
+        settingsPanel.SetActive(false);
         accessPanel.SetActive(false);
 
-        if (nameHint != null)
+        if (nameEntryHint != null) nameEntryHint.Text = string.Empty;
+
+        // Focused, so the very first thing they can do is type.
+        if (nameEntryField != null)
         {
-            nameHint.Text = "PICK A NAME TO START";
-            nameHint.Tint = accent;
+            nameEntryField.text = HighScores.PlayerName;
+            nameEntryField.Select();
+        }
+    }
+
+    private void CloseNamePrompt()
+    {
+        namePanel.SetActive(false);
+        menuRoot.SetActive(true);
+    }
+
+    // Refused rather than silently accepted, since a blank name is the entire reason this
+    // screen is open. Trimmed first, because the box can visibly contain spaces while
+    // IsNullOrWhiteSpace still reads it as empty, which would look like the button is dead.
+    private void ConfirmName()
+    {
+        string typed = HighScores.PlayerName == null ? string.Empty : HighScores.PlayerName.Trim();
+
+        if (string.IsNullOrEmpty(typed))
+        {
+            if (nameEntryHint != null) nameEntryHint.Text = "TYPE SOMETHING FIRST";
+            if (nameEntryField != null) nameEntryField.Select();
+            return;
         }
 
-        // Focused, so the very first thing they can do is type. Landing on a settings screen
-        // and having to work out which box matters is a worse first impression than the
-        // question itself.
-        if (nameField != null) nameField.Select();
+        HighScores.PlayerName = typed;
+
+        // The panel is deliberately left up. Leave starts a wipe, and hiding the panel first
+        // meant the wipe played over a bare background for its whole length. It also keeps
+        // something on screen in the case where Leave declines to act because a wipe is
+        // already running.
+        Leave(pendingTutorial);
+    }
+
+    // Kept in step with the copy on the settings panel so the two can never disagree.
+    // Assigning .text there fires its own handler, which writes the same value back and
+    // updates the settings hint. It does not assign to this field, so there is no loop.
+    private void OnEntryNameChanged(string value)
+    {
+        HighScores.PlayerName = value;
+
+        if (nameField != null && nameField.text != value) nameField.text = value;
+
+        if (nameEntryHint == null) return;
+
+        nameEntryHint.Text = BossDirector.FaceFor(value) != null
+            ? "NICE. EVERYONE LOOKS LIKE YOU NOW."
+            : string.Empty;
     }
 
     private void ToggleSettings()
@@ -347,6 +418,42 @@ public class MenuUI : MonoBehaviour
             .onClick.AddListener(ToggleSettings);
 
         settingsPanel.SetActive(false);
+    }
+
+    // --- name prompt ---
+
+    // Offsets deliberately reuse the settings panel's own name block, label at -200, field at
+    // -272, hint at -348, and the house BACK row at -880, so the two screens line up exactly
+    // and the prompt reads as part of the same menu rather than as a different one.
+    private void BuildNamePanel(RectTransform root)
+    {
+        RectTransform panel = MakePanel(root, "Name Panel", "WHO ARE YOU", out namePanel);
+
+        PixelText prompt = MakeText("Name Prompt", panel, 30, TextAlignmentOptions.Top, ink,
+                                    new Vector2(0.5f, 1f), new Vector2(0f, -200f), new Vector2(900f, 40f));
+        prompt.Text = "ENTER YOUR NAME";
+
+        nameEntryField = InputField("Name Entry", panel, new Vector2(0f, -272f), new Vector2(460f, 64f));
+        nameEntryField.text = HighScores.PlayerName;
+        nameEntryField.onValueChanged.AddListener(OnEntryNameChanged);
+
+        // Enter starts the shift, so the whole screen can be answered without reaching for
+        // the mouse.
+        nameEntryField.onSubmit.AddListener(_ => ConfirmName());
+
+        nameEntryHint = MakeText("Name Entry Hint", panel, 22, TextAlignmentOptions.Top, accent,
+                                 new Vector2(0.5f, 1f), new Vector2(0f, -348f), new Vector2(1100f, 30f));
+        nameEntryHint.Text = string.Empty;
+
+        MakeButton("Name Confirm", panel, "START", new Vector2(0f, -460f), new Vector2(480f, 84f),
+                   new Vector2(0.5f, 1f), 30)
+            .onClick.AddListener(ConfirmName);
+
+        MakeButton("Name Back", panel, "BACK", new Vector2(0f, -880f), new Vector2(320f, 76f),
+                   new Vector2(0.5f, 1f), 30)
+            .onClick.AddListener(CloseNamePrompt);
+
+        namePanel.SetActive(false);
     }
 
     private void OnVolumeChanged(float value)
@@ -596,6 +703,7 @@ public class MenuUI : MonoBehaviour
         BuildBoardPanel(root);
         BuildSettingsPanel(root);
         BuildAccessPanel(root);
+        BuildNamePanel(root);
     }
 
     // Both teachers, one per bottom corner.
@@ -611,7 +719,11 @@ public class MenuUI : MonoBehaviour
             if (t == null) continue;
 
             bool framed = t.rise != null && t.rise.Length > 0;
-            if (!framed && t.still == null) continue;
+            bool performs = t.arrived != null && t.arrived.Length > 0;
+
+            // A teacher needs SOMETHING to draw. Arrived frames count, so somebody who
+            // slides up and then performs does not need a separate still assigned as well.
+            if (!framed && t.still == null && !performs) continue;
 
             Vector2 corner = new Vector2(t.rightSide ? 1f : 0f, 0f);
 
@@ -644,7 +756,7 @@ public class MenuUI : MonoBehaviour
             Image art = artGo.AddComponent<Image>();
             art.raycastTarget = false;
             art.preserveAspect = true;
-            art.sprite = framed ? t.rise[0] : t.still;
+            art.sprite = framed ? t.rise[0] : (t.still != null ? t.still : t.arrived[0]);
 
             // Parented to the menu rather than to the teacher, so the name holds still
             // while he sinks inside his own box. It fades with him instead of moving.
@@ -668,8 +780,8 @@ public class MenuUI : MonoBehaviour
                                        new Vector2(teacherPixels, 30f));
             label.Text = t.name;
 
-            zone.AddComponent<MenuPeeker>().Setup(rt, group, t.rise, t.duck, t.still, t.fps,
-                                                  teacherPixels, t.peekAtRest);
+            zone.AddComponent<MenuPeeker>().Setup(rt, group, t.rise, t.duck, t.arrived, t.still,
+                                                  t.fps, teacherPixels, t.peekAtRest);
         }
     }
 

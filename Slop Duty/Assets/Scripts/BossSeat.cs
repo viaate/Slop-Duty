@@ -10,6 +10,7 @@ using UnityEngine;
 public class BossSeat : MonoBehaviour
 {
     private SpriteRenderer body;
+    private GameObject bubbleRoot;
     private SpriteRenderer bubble;
     private Sprite requestArt;
 
@@ -38,6 +39,11 @@ public class BossSeat : MonoBehaviour
         GameObject go = new GameObject("Bubble");
         go.transform.SetParent(transform, false);
         go.transform.localPosition = art.offset;
+
+        // Kept, so the whole bubble can be taken down as one thing. Hiding the slop alone
+        // leaves the frame and the empty bowl on screen, and a seat holding out an empty
+        // dish still reads as a seat asking for something.
+        bubbleRoot = go;
 
         Layer("Bubble BG", go.transform, art.background, 5);
         Layer("Bubble Bowl", go.transform, art.bowl, 6);
@@ -99,6 +105,7 @@ public class BossSeat : MonoBehaviour
 
         if (bubble == null) return;
 
+        if (bubbleRoot != null) bubbleRoot.SetActive(true);
         bubble.enabled = true;
 
         SlopLogic logic = SlopLogic.Instance;
@@ -112,7 +119,24 @@ public class BossSeat : MonoBehaviour
     public void Quiet()
     {
         Asking = false;
-        if (bubble != null) bubble.enabled = false;
+
+        // The whole bubble goes, not just the slop inside it.
+        //
+        // Two separate things were wrong here. The second colour of a double and the
+        // colorblind shape are CHILD renderers, and Renderer.enabled does not reach a child,
+        // so switching off the slop layer took the whole shape away and left its right half
+        // drawing on its own. And the frame and the bowl were never hidden by anything at
+        // all, so even once that was fixed the seat was still holding out an empty dish.
+        //
+        // SetActive on the root covers all five layers at once. There is no legitimate empty
+        // bubble to preserve: orders are dealt in the same frame a seat is satisfied, so a
+        // seat is only ever quiet for less than a frame unless it has finished for good.
+        if (bubbleRoot != null) bubbleRoot.SetActive(false);
+
+        // Belt and braces. SetActive does not clear these flags, so anything that ever brings
+        // the root back without going through Ask still finds the children in a sane state.
+        MixPainter.Hide(bubble);
+        SymbolBadge.Hide(bubble);
     }
 
     public bool Wants(SlopMix mix) => Asking && want.Matches(mix);

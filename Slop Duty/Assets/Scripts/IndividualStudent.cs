@@ -102,6 +102,11 @@ public class IndividualStudent : MonoBehaviour
 
         if (requestSprite == null)
         {
+            // Cleared explicitly, for the same reason as the pans: this branch paints the
+            // renderer directly rather than through MixPainter, so nothing else would take
+            // a leftover second color down.
+            MixPainter.ClearSecondHalf(studentSpriteRenderer);
+
             studentSpriteRenderer.color = assignedMix.a;
             return;
         }

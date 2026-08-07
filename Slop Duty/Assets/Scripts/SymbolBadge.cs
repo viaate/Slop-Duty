@@ -45,6 +45,11 @@ public static class SymbolBadge
         Fit(host, badge, widthFraction);
     }
 
+    // Same reason MixPainter.Hide exists: the badge is a child renderer and does not follow
+    // the host's enabled flag, so hiding a slop by switching off its renderer would leave the
+    // shape hanging in the air.
+    public static void Hide(SpriteRenderer host) => Apply(host, -1, 0f);
+
     private static SpriteRenderer Ensure(SpriteRenderer host, Transform found)
     {
         if (found != null) return found.GetComponent<SpriteRenderer>();

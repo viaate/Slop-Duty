@@ -30,6 +30,7 @@ public class MenuPeeker : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
     private Sprite[] rise;
     private Sprite[] duck;
+    private Sprite[] arrived;
 
     private float fps = 12f;
     private float slideSeconds = 0.45f;
@@ -40,9 +41,15 @@ public class MenuPeeker : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private float progress;
     private bool hovered;
 
+    // Where the arrived sequence has got to, and the leftover time since it last stepped.
+    private int arrivedIndex;
+    private float arrivedTimer;
+
     // Frames if there are any, sliding if there are not. Decided once here rather than
     // checked at every branch below.
     private bool Framed => rise != null && rise.Length > 0 && duck != null && duck.Length > 0;
+
+    private bool HasArrived => arrived != null && arrived.Length > 0;
 
     // Each direction takes as long as its own sequence, so the seven frame rise and the
     // eight frame duck both play at their drawn speed rather than being forced to match.
@@ -50,8 +57,8 @@ public class MenuPeeker : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     private float DuckRate => Framed ? fps / Mathf.Max(1f, duck.Length) : 1f / slideSeconds;
 
     public void Setup(RectTransform image, CanvasGroup label, Sprite[] riseFrames,
-                      Sprite[] duckFrames, Sprite stillFrame, float framesPerSecond,
-                      float artHeight, float restingPeek)
+                      Sprite[] duckFrames, Sprite[] arrivedFrames, Sprite stillFrame,
+                      float framesPerSecond, float artHeight, float restingPeek)
     {
         artRect = image;
         art = image != null ? image.GetComponent<Image>() : null;
@@ -59,14 +66,28 @@ public class MenuPeeker : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
         rise = riseFrames;
         duck = duckFrames;
+        arrived = arrivedFrames;
 
         fps = Mathf.Max(1f, framesPerSecond);
         height = artHeight;
         restPeek = Mathf.Clamp01(restingPeek);
 
-        if (!Framed && art != null && stillFrame != null) art.sprite = stillFrame;
+        // The resting picture.
+        //
+        // The first arrived frame beats the still, and deliberately so: it IS his resting
+        // pose, being what he looks like the instant before he starts performing. Preferring
+        // a separate still would draw one picture all the way up the slide and then swap to
+        // a different one the moment he got to the top, which pops.
+        if (!Framed && art != null)
+        {
+            if (HasArrived) SetSprite(arrived[0]);
+            else if (stillFrame != null) SetSprite(stillFrame);
+        }
 
         progress = 0f;
+        arrivedIndex = 0;
+        arrivedTimer = 0f;
+
         Apply();
     }
 
@@ -94,6 +115,67 @@ public class MenuPeeker : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         // without needing to be sequenced separately. A caption hanging in the corner over
         // an empty space is the giveaway that somebody is hiding just off screen.
         if (nameGroup != null) nameGroup.alpha = progress;
+
+        // After Apply, so that on the frames where the sequence owns the picture it writes
+        // last and wins.
+        StepArrived();
+    }
+
+    // What he does once he has finished arriving: Al flicks his eyes about and then reaches
+    // up to scratch his head.
+    //
+    // Kept out of Apply and off the progress number entirely, because the two are different
+    // kinds of thing. Progress is a POSITION, and the reason the peek never snaps is that a
+    // position can only ever be moved toward a target and so reverses from wherever it got
+    // to. This is a PERFORMANCE, which has a first frame and a last one.
+    //
+    // So it gets the same treatment anyway. The frame index is also just moved toward a
+    // target, the end of the sequence while he is up and the start of it while he is not,
+    // which means taking the pointer away unwinds him back to a resting pose at the same
+    // speed he played it instead of cutting his arm back to his side in one frame. There is
+    // no drawing of the arm coming down, and this is what stands in for one.
+    private void StepArrived()
+    {
+        if (!HasArrived || art == null) return;
+
+        int want = progress >= 1f ? arrived.Length - 1 : 0;
+
+        // Fully unwound and not going anywhere, so the picture goes back to whoever else
+        // wants it. That is what lets a framed character play his own rise and duck frames
+        // on the way in and out and still perform once he is up.
+        if (want == 0 && arrivedIndex == 0)
+        {
+            arrivedTimer = 0f;
+            return;
+        }
+
+        if (arrivedIndex == want) arrivedTimer = 0f;
+        else
+        {
+            arrivedTimer += Time.unscaledDeltaTime;
+
+            float frameTime = 1f / Mathf.Max(1f, fps);
+
+            // A while loop rather than one step per frame, so a hitch skips frames instead
+            // of stretching the whole sequence out.
+            while (arrivedTimer >= frameTime && arrivedIndex != want)
+            {
+                arrivedTimer -= frameTime;
+                arrivedIndex += arrivedIndex < want ? 1 : -1;
+            }
+        }
+
+        SetSprite(arrived[Mathf.Clamp(arrivedIndex, 0, arrived.Length - 1)]);
+    }
+
+    // Guarded, because assigning to Image.sprite marks the canvas dirty and Unity then
+    // rebuilds and rebatches the whole thing. Most frames of a 12fps sequence are a repeat
+    // of the one before, and this runs every frame on a screen that is doing nothing else.
+    private void SetSprite(Sprite next)
+    {
+        if (art == null || next == null || art.sprite == next) return;
+
+        art.sprite = next;
     }
 
     private void Apply()
@@ -123,6 +205,6 @@ public class MenuPeeker : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         float along = hovered ? progress : 1f - progress;
 
         int index = Mathf.Clamp(Mathf.RoundToInt(along * (frames.Length - 1)), 0, frames.Length - 1);
-        art.sprite = frames[index];
+        SetSprite(frames[index]);
     }
 }

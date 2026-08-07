@@ -93,6 +93,12 @@ public class Slop : MonoBehaviour
         // Recoloring switched off, so tint instead. A double cannot be shown this way at
         // all, since tinting one sprite can only produce one color, and it falls back to
         // leading with the first. Recoloring is on by default for exactly this reason.
+        //
+        // The leftover half has to be cleared explicitly, because this branch writes to the
+        // renderer directly instead of going through MixPainter. Without it, a pan that was
+        // a double yesterday keeps its second color today.
+        MixPainter.ClearSecondHalf(slopSpriteRenderer);
+
         slopSpriteRenderer.sprite = baseSprite;
         slopSpriteRenderer.color = newMix.a;
     }
