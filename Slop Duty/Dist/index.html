@@ -8,27 +8,26 @@
     <link rel="stylesheet" href="TemplateData/style.css">
 
     <!--
-      Fills whatever frame it is given instead of being a fixed 1920 by 1080 box.
+      Fills whatever frame it is given instead of being a fixed 1280 by 720 box.
 
-      Unity's template centres a canvas of an exact pixel size, which on itch means a page
-      wider than most laptops and a set of scrollbars. Letting it fill the frame means the
-      itch viewport alone decides how big the game is, and CameraFit already adapts the
-      world to whatever shape that turns out to be.
-
-      Unity keeps its render target matched to the canvas's CSS size, so this stays sharp at
-      any size rather than being a stretched 1080p image.
+      Unity's template centres a canvas of an exact pixel size using a translate, so in any
+      frame smaller than the canvas the game overflows and is cropped on all four sides at
+      once, which is why SETTINGS was cut off the top and LEADERBOARD off the right. Letting
+      it fill the frame means the itch viewport alone decides how big the game is, and
+      LetterboxCamera already adapts the world to whatever shape that turns out to be.
     -->
     <style>
-      html, body { width: 100%; height: 100%; overflow: hidden; background: #231F20; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #231F20; }
 
+      /* Beats the transform-centred rule in TemplateData/style.css. */
       #unity-container.unity-desktop {
-        left: 0; top: 0; width: 100%; height: 100%; transform: none;
+        position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform: none;
       }
 
-      #unity-canvas { width: 100%; height: 100%; display: block; }
+      #unity-canvas { width: 100%; height: 100%; display: block; background: #231F20; }
 
-      /* itch puts its own fullscreen button on the frame, and Unity's footer would only
-         take a strip off the bottom of the game to duplicate it. */
+      /* itch puts its own fullscreen button on the frame, and Unity's footer would only take
+         a strip off the bottom of the game to duplicate it. That strip is the grey bar. */
       #unity-footer { display: none; }
     </style>
   </head>
@@ -88,8 +87,7 @@
       //
       // Unity is supposed to do this itself, and does not: with a fixed size on the canvas
       // element it renders at that size forever and the browser squashes the result into
-      // whatever space the page actually gives it. Measured on a 683 by 325 frame it was
-      // still rendering 1920 by 1080, so the game came out stretched.
+      // whatever space the page actually gives it.
       //
       // Multiplied by devicePixelRatio so it stays sharp on a retina screen rather than
       // being drawn at half resolution and scaled up.
@@ -100,8 +98,8 @@
         var w = Math.max(1, Math.round(rect.width * dpr));
         var h = Math.max(1, Math.round(rect.height * dpr));
 
-        // Guarded, because assigning to canvas.width clears the drawing buffer even when
-        // the value has not changed, which would flicker the game every resize event.
+        // Guarded, because assigning to canvas.width clears the drawing buffer even when the
+        // value has not changed, which would flicker the game on every resize event.
         if (canvas.width === w && canvas.height === h) return;
 
         canvas.width = w;
@@ -110,26 +108,16 @@
 
       window.addEventListener("resize", fitCanvas);
 
+      // Going in and out of fullscreen resizes the element without always firing resize in
+      // time, so this catches the case the bare listener misses.
+      document.addEventListener("fullscreenchange", function () { setTimeout(fitCanvas, 100); });
+
       var buildUrl = "Build";
       var loaderUrl = buildUrl + "/Dist.loader.js";
       var config = {
-        // Plain files, not the .br ones the build produced.
-        //
-        // This build was made with Brotli compression and WITHOUT Decompression Fallback,
-        // which means the loader carries no decompressor and the web server has to announce
-        // the files with "Content-Encoding: br". Serving them locally with that header, the
-        // game loads perfectly; without it, the loader cannot read a byte and you get a
-        // blank canvas. itch does not send it.
-        //
-        // Decompressing them here sidesteps the whole question: plain files need nothing
-        // from the server at all. The cost is download size, roughly 39MB against 11MB.
-        //
-        // The permanent fix is Player Settings, Publishing Settings, Decompression Fallback,
-        // then rebuild. That keeps the small files AND works anywhere, because the loader
-        // does the decompressing itself.
-        dataUrl: buildUrl + "/Dist.data",
-        frameworkUrl: buildUrl + "/Dist.framework.js",
-        codeUrl: buildUrl + "/Dist.wasm",
+        dataUrl: buildUrl + "/Dist.data.unityweb",
+        frameworkUrl: buildUrl + "/Dist.framework.js.unityweb",
+        codeUrl: buildUrl + "/Dist.wasm.unityweb",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "DefaultCompany",
         productName: "Slop Duty",
