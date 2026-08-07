@@ -256,7 +256,7 @@ MonoBehaviour:
   - name: Al
     rise: []
     duck: []
-    still: {fileID: 21300000, guid: a4bd36b496734244190c5038dc5ef346, type: 3}
+    still: {fileID: 21300000, guid: 3ea0308436764c143a1583b45cf3029c, type: 3}
     fps: 12
     rightSide: 1
     peekAtRest: 0.31

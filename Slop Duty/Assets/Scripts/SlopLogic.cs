@@ -143,8 +143,38 @@ public class SlopLogic : MonoBehaviour
              "above. A decoy has to be obviously absent, not merely different.")]
     [SerializeField, Range(1f, 2.5f)] private float decoyGapMultiplier = 1.35f;
 
+    [Header("Double slops")]
+    [Tooltip("slop-right.PNG. The right-hand half of the pan blob, laid over the whole " +
+             "shape in the second color. Leave empty to switch doubles off entirely.")]
+    [SerializeField] private Sprite counterRightHalf;
+
+    [Tooltip("student-slop-right.PNG. Same job for the smaller blob inside a thought bubble.")]
+    [SerializeField] private Sprite bubbleRightHalf;
+
+    [Tooltip("Pans on the counter before doubles start appearing. Below this the wheel has " +
+             "room to spare and single colors are separable on sight, so a double would be " +
+             "complication without difficulty.")]
+    [SerializeField, Range(2, 12)] private int doublesFromPans = 6;
+
+    [Tooltip("Ceiling on how many pans are doubles at once. Each one is built from two of " +
+             "the plain colors, so a counter needs at least two singles left over.")]
+    [SerializeField, Range(0, 4)] private int maxDoublePans = 2;
+
+    [Tooltip("Chance a not-on-the-counter request is a wrong PAIR rather than an unseen " +
+             "color, once doubles exist. A pair of colors that are both out there but never " +
+             "together is the hardest honest test in the game.")]
+    [SerializeField, Range(0f, 1f)] private float doubleDecoyChance = 0.5f;
+
     private List<Color> colors = new List<Color>();
     private List<Slop> slopObjects = new List<Slop>();
+
+    // What each active pan actually holds. Same length and order as the live part of
+    // colors, with some entries promoted to doubles. colors stays the single source for the
+    // separation maths, which only ever reasons about one color at a time.
+    private List<SlopMix> mixes = new List<SlopMix>();
+
+    public Sprite CounterRightHalf => counterRightHalf;
+    public Sprite BubbleRightHalf => bubbleRightHalf;
 
     // The band every slop lives in, pans and decoys alike. Shared so the two can never
     // drift apart: a decoy drawn from a different range than the pans is identifiable on
@@ -163,6 +193,12 @@ public class SlopLogic : MonoBehaviour
     private Slop selectedSlop;
     private int activeCount;
     private float wheelOffset;
+
+    // How many distinct colors this day is generating, which is NOT the pan count once
+    // doubles exist. The hue wheel is divided by this, so a counter of eight pans holding
+    // six colors spreads those six across the whole wheel instead of bunching them into
+    // six eighths of it.
+    private int paletteSize;
 
     private static Color RandomSlopColor(float hue) =>
         Color.HSVToRGB(hue, Random.Range(SatMin, SatMax), Random.Range(ValMin, ValMax));
@@ -241,13 +277,30 @@ public class SlopLogic : MonoBehaviour
         int relief = GameManager.Instance != null ? WeekBoost.FewerColors(GameManager.Instance.Day) : 0;
         activeCount = Mathf.Max(2, activeCount - relief);
 
+        // Doubles are decided BEFORE any color is rolled, because they change how many
+        // colors the day needs. This is the whole point of the mechanic rather than a
+        // detail of it: a double is built from two colors that are already on the counter,
+        // so a pan holding one costs no new hue. Eight pans with two doubles ask for six
+        // colors, and six colors sit visibly further apart on the wheel than eight do.
+        // The counter gets busier while the palette gets easier to read.
+        int doubles = DoubleCount();
+        paletteSize = Mathf.Max(2, activeCount - doubles);
+
+        // Re-derived, so if the floor above took effect the pan count and the mix count
+        // still agree. Without this a two-pan counter could ask for one double and get a
+        // mixes list a pan short.
+        doubles = activeCount - paletteSize;
+
         colors.Clear();
         wheelOffset = Random.value;
 
-        for (int i = 0; i < activeCount; i++)
+        for (int i = 0; i < paletteSize; i++)
             colors.Add(BestCandidate(i));
 
         Repair();
+
+        // After Repair, so the pairs are built out of colors that are final.
+        BuildMixes(doubles);
 
         // Warns rather than silently shipping a palette nobody can read.
         //
@@ -263,9 +316,10 @@ public class SlopLogic : MonoBehaviour
         if (ClosestPair(out _, out _, out float achieved) && achieved < ReadableFloor
             && warnedCounts.Add(activeCount))
         {
-            Debug.LogWarning($"{name}: only reached a color gap of {achieved:0.000} with " +
-                             $"{activeCount} pans, which is close enough that two of them " +
-                             "will look alike. Use fewer pans.", this);
+            Debug.LogWarning($"{name}: only reached a color gap of {achieved:0.000} across " +
+                             $"{paletteSize} colors, which is close enough that two of them " +
+                             "will look alike. Use fewer pans, or allow more doubles so the " +
+                             "same counter needs fewer colors.", this);
         }
 
         ApplyToCounter();
@@ -297,10 +351,15 @@ public class SlopLogic : MonoBehaviour
 
     private Color RandomInSector(int index)
     {
+        // Divided by the number of colors being generated, not by the number of pans. Once
+        // doubles exist those differ, and dividing by the pan count would leave a wedge of
+        // the wheel unused and crowd the colors into what was left.
+        int sectors = Mathf.Max(1, paletteSize);
+
         // A quarter of the sector rather than a third, so stratification still means
         // something before the perceptual pass gets involved.
-        float jitter = Random.Range(-0.25f, 0.25f) / activeCount;
-        float hue = Mathf.Repeat(wheelOffset + (index / (float)activeCount) + jitter, 1f);
+        float jitter = Random.Range(-0.25f, 0.25f) / sectors;
+        float hue = Mathf.Repeat(wheelOffset + (index / (float)sectors) + jitter, 1f);
 
         // Lightness varies within the shared band so neighbouring hues can separate on
         // brightness as well as colour. The floor is deliberately not lower: the renderer
@@ -362,6 +421,75 @@ public class SlopLogic : MonoBehaviour
         return a >= 0;
     }
 
+    // How many of this day's pans hold a pair instead of a single color.
+    //
+    // One the moment they unlock and another for every two pans past that, capped. The
+    // counter earns its complication at the same rate it earns its crowding.
+    private int DoubleCount()
+    {
+        if (counterRightHalf == null || maxDoublePans <= 0) return 0;
+        if (activeCount < doublesFromPans) return 0;
+
+        int wanted = Mathf.Min(maxDoublePans, 1 + (activeCount - doublesFromPans) / 2);
+
+        // Two plain colors have to survive for a pair to be built out of, and a counter
+        // that is nothing but doubles has no singles left to compare them against.
+        return Mathf.Clamp(wanted, 0, Mathf.Max(0, activeCount - 2));
+    }
+
+    // Lays the finished palette out across the pans: one pan per plain color, then the
+    // doubles, each one a pair of two of those same colors.
+    //
+    // Every half of every double is therefore also sitting on the counter on its own. That
+    // is what makes a double readable at a glance rather than a guess. It is the red and
+    // blue one, next to the red one and the blue one, and the question it asks is not
+    // "what shade is that" but "is that combination actually out there".
+    private void BuildMixes(int doubles)
+    {
+        mixes.Clear();
+
+        for (int i = 0; i < colors.Count; i++)
+            mixes.Add(SlopMix.Single(colors[i]));
+
+        if (doubles > 0 && colors.Count >= 2)
+        {
+            List<SlopMix> pairs = new List<SlopMix>();
+
+            for (int i = 0; i < colors.Count; i++)
+                for (int j = i + 1; j < colors.Count; j++)
+                    pairs.Add(SlopMix.Double(colors[i], colors[j]));
+
+            Shuffle(pairs);
+
+            // Taken off the front of a shuffled list of every possible pair, so no two
+            // doubles can come out the same and no pair is more likely than another.
+            for (int i = 0; i < doubles && i < pairs.Count; i++)
+                mixes.Add(pairs[i]);
+        }
+
+        // Shuffled so the doubles are not always the rightmost pans. Built in order they
+        // would sit at the end of the counter every single day, and "the double is on the
+        // right" is a habit the player would learn instead of looking.
+        Shuffle(mixes);
+    }
+
+    private static void Shuffle<T>(List<T> list)
+    {
+        for (int i = list.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            (list[i], list[j]) = (list[j], list[i]);
+        }
+    }
+
+    private bool HasDoubles()
+    {
+        for (int i = 0; i < mixes.Count && i < activeCount; i++)
+            if (mixes[i].isDouble) return true;
+
+        return false;
+    }
+
     private void ApplyToCounter()
     {
         for (int i = 0; i < slopObjects.Count; i++)
@@ -378,7 +506,7 @@ public class SlopLogic : MonoBehaviour
             // leaves a gap at one end and a pile-up at the other.
             if (autoLayout) s.transform.position = PanPosition(i, activeCount);
 
-            s.SetColor(GetColor(i));
+            s.SetMix(GetMix(i));
 
             // Handed the loop index rather than looked up from the color, because the
             // colors are still being written as this loop runs: asking "which pan is this
@@ -438,17 +566,38 @@ public class SlopLogic : MonoBehaviour
 
     public int GetColorCount() => colors.Count;
 
-    // True if a pan that is currently switched on is this color.
-    public bool IsOnCounter(Color wanted)
+    // What a given pan is holding, which may be one color or two.
+    public SlopMix GetMix(int index)
+    {
+        if (mixes.Count == 0) return SlopMix.Single(GetColor(index));
+
+        int wrapped = ((index % mixes.Count) + mixes.Count) % mixes.Count;
+        return mixes[wrapped];
+    }
+
+    // Bounded by activeCount rather than by the list, so a day that shrank the counter
+    // cannot hand out an order for a pan that is switched off.
+    public SlopMix GetRandomMix()
+        => GetMix(Random.Range(0, Mathf.Max(1, Mathf.Min(mixes.Count, activeCount))));
+
+    // True if a pan that is currently switched on is holding exactly this.
+    //
+    // Exactly, so a double never satisfies a request for one of the colors inside it and a
+    // single never satisfies a double. Note the consequence: promoting a pan to a double
+    // takes its old plain color off the counter, since colors are unique per pan. That is
+    // why orders are drawn from the mixes and not from the color list.
+    public bool IsOnCounter(SlopMix wanted)
     {
         for (int i = 0; i < slopObjects.Count && i < activeCount; i++)
         {
             if (slopObjects[i] == null) continue;
-            if (slopObjects[i].GetColor() == wanted) return true;
+            if (slopObjects[i].GetMix().Matches(wanted)) return true;
         }
 
         return false;
     }
+
+    public bool IsOnCounter(Color wanted) => IsOnCounter(SlopMix.Single(wanted));
 
     // Which pixel shape belongs to a color, or -1 when shapes are switched off.
     //
@@ -461,23 +610,73 @@ public class SlopLogic : MonoBehaviour
     // turns the one case the sorry-we're-out button exists for into a freebie. This way the
     // decoy has a shape like everyone else, and it simply is not one of the shapes on the
     // counter, which is the same job the colors were doing.
-    public int SymbolFor(Color wanted)
+    // A double needs no special handling here and that is not an accident. Shapes are
+    // handed out per PAN, so the double simply has its own shape like every other pan, and
+    // the kid asking for it carries that same shape. The pair is the thing being matched,
+    // which is exactly what one badge per pan already says.
+    public int SymbolFor(SlopMix wanted)
     {
         if (!Settings.UseSymbols) return -1;
 
         for (int i = 0; i < slopObjects.Count && i < activeCount; i++)
         {
             if (slopObjects[i] == null) continue;
-            if (slopObjects[i].GetColor() == wanted) return i;
+            if (slopObjects[i].GetMix().Matches(wanted)) return i;
         }
 
         int spare = Mathf.Max(1, SlopSymbols.Count - activeCount);
 
-        // Derived from the color itself rather than rolled, so the same kid keeps the same
-        // shape for as long as they are standing there.
-        int hash = Mathf.Abs(wanted.GetHashCode());
+        // Derived from the request itself rather than rolled, so the same kid keeps the same
+        // shape for as long as they are standing there. Masked rather than negated, because
+        // Mathf.Abs of int.MinValue is still int.MinValue and would index backwards.
+        int hash = wanted.Key() & 0x7fffffff;
 
         return activeCount + (hash % spare);
+    }
+
+    public int SymbolFor(Color wanted) => SymbolFor(SlopMix.Single(wanted));
+
+    // The "sorry we're out" request, which is either an unseen color or a wrong pair.
+    //
+    // A wrong pair is two colors that are both out there on the counter but never together
+    // in one pan, and it is the sharpest honest question the game can ask: nothing about it
+    // looks absent, so the only way through is to actually check the pans for that
+    // combination. An unseen color can be answered by noticing an unfamiliar shade.
+    //
+    // Only offered once a real double exists. On a counter with no doubles at all, any
+    // double is obviously absent on sight, which would turn the one case the sorry-we're-out
+    // button exists for into a freebie.
+    public SlopMix GetOffPaletteMix()
+    {
+        if (HasDoubles() && colors.Count >= 2 && Random.value < doubleDecoyChance
+            && TryWrongPair(out SlopMix pair))
+        {
+            return pair;
+        }
+
+        return SlopMix.Single(GetOffPaletteColor());
+    }
+
+    private bool TryWrongPair(out SlopMix pair)
+    {
+        pair = default;
+
+        for (int attempt = 0; attempt < 40; attempt++)
+        {
+            int i = Random.Range(0, colors.Count);
+            int j = Random.Range(0, colors.Count);
+            if (i == j) continue;
+
+            SlopMix candidate = SlopMix.Double(colors[i], colors[j]);
+            if (IsOnCounter(candidate)) continue;
+
+            pair = candidate;
+            return true;
+        }
+
+        // Every pair is already on the counter, which needs a very small palette and a very
+        // high double count. Caller falls back to an unseen color.
+        return false;
     }
 
     // A color deliberately unlike anything on the counter, for the "sorry we're out" case.

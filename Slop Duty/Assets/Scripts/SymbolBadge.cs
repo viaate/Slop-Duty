@@ -35,7 +35,12 @@ public static class SymbolBadge
         // One in front of whatever it is marking. Same layer, so it cannot end up behind a
         // student who happens to sort above the counter.
         badge.sortingLayerID = host.sortingLayerID;
-        badge.sortingOrder = host.sortingOrder + 1;
+
+        // Two above the host, not one. A double slop lays its second color over the host at
+        // exactly one above, and the shape has to stay readable on top of both halves. At
+        // the same order as that half the two would be in an undefined draw order and the
+        // badge would flicker behind the second color on some pans and not others.
+        badge.sortingOrder = host.sortingOrder + 2;
 
         Fit(host, badge, widthFraction);
     }

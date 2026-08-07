@@ -23,7 +23,7 @@ public class BossVisitor : MonoBehaviour
     // matched against whichever seat was actually under the cursor.
     private readonly List<BossSeat> seats = new List<BossSeat>();
 
-    private readonly List<Color> orders = new List<Color>();
+    private readonly List<SlopMix> orders = new List<SlopMix>();
     private int served;
 
     // Where each seat is up to in the order list. They step through it by the number of
@@ -138,20 +138,23 @@ public class BossVisitor : MonoBehaviour
         // and one of them being hungrier than the other is not a duo, it is a bug report.
         count = Mathf.CeilToInt(count / (float)seats.Count) * seats.Count;
 
-        int available = logic.GetColorCount();
+        // Pans, not colors. A boss only ever orders things that are genuinely on the
+        // counter, and once doubles exist a pan's color and a pan's contents are not the
+        // same thing, so ordering by color could ask for something nobody can serve.
+        int available = Mathf.Max(1, logic.ActivePanCount);
 
         for (int i = 0; i < count; i++)
         {
-            Color next = logic.GetColor(Random.Range(0, available));
+            SlopMix next = logic.GetRandomMix();
 
-            // Never the same color twice running. Repeats would let a whole boss be
+            // Never the same order twice running. Repeats would let a whole boss be
             // cleared on one held scoop, which is not an encounter, it is a button.
             if (orders.Count > 0 && available > 1)
             {
                 int guard = 0;
 
-                while (next == orders[orders.Count - 1] && guard++ < 12)
-                    next = logic.GetColor(Random.Range(0, available));
+                while (next.Matches(orders[orders.Count - 1]) && guard++ < 12)
+                    next = logic.GetRandomMix();
             }
 
             orders.Add(next);
@@ -254,7 +257,7 @@ public class BossVisitor : MonoBehaviour
         Slop held = logic.GetSelectedSlop();
         if (held == null || !held.GetIsSelected()) return;
 
-        bool right = clicked.Wants(held.GetColor());
+        bool right = clicked.Wants(held.GetMix());
 
         GameManager game = GameManager.Instance;
 

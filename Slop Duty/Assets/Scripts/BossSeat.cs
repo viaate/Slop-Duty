@@ -13,7 +13,7 @@ public class BossSeat : MonoBehaviour
     private SpriteRenderer bubble;
     private Sprite requestArt;
 
-    private Color want;
+    private SlopMix want;
 
     public bool Asking { get; private set; }
 
@@ -92,30 +92,19 @@ public class BossSeat : MonoBehaviour
         }
     }
 
-    public void Ask(Color color)
+    public void Ask(SlopMix mix)
     {
-        want = color;
+        want = mix;
         Asking = true;
 
         if (bubble == null) return;
 
         bubble.enabled = true;
 
-        Sprite painted = requestArt != null ? SpriteRecolor.For(requestArt, color) : null;
-
-        if (painted != null)
-        {
-            bubble.sprite = painted;
-            bubble.color = Color.white;
-        }
-        else
-        {
-            bubble.sprite = requestArt;
-            bubble.color = color;
-        }
-
         SlopLogic logic = SlopLogic.Instance;
-        SymbolBadge.Apply(bubble, logic != null ? logic.SymbolFor(color) : -1, 0.34f);
+
+        MixPainter.Paint(bubble, requestArt, logic != null ? logic.BubbleRightHalf : null, mix);
+        SymbolBadge.Apply(bubble, logic != null ? logic.SymbolFor(mix) : -1, 0.34f);
     }
 
     // Satisfied, or the encounter is over. The picture stays, so a duo does not lose half
@@ -126,7 +115,7 @@ public class BossSeat : MonoBehaviour
         if (bubble != null) bubble.enabled = false;
     }
 
-    public bool Wants(Color color) => Asking && want == color;
+    public bool Wants(SlopMix mix) => Asking && want.Matches(mix);
 
     public void Disable()
     {

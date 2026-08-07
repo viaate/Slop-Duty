@@ -51,17 +51,12 @@ public class HeldSlopVisual : MonoBehaviour
         visual.enabled = holding || !hideWhenEmpty;
         if (!holding || blobSprite == null) return;
 
-        Sprite painted = SpriteRecolor.For(blobSprite, held.GetColor());
-
-        if (painted != null)
-        {
-            visual.sprite = painted;
-            visual.color = Color.white;
-            return;
-        }
-
-        // Texture not readable, so fall back to tinting rather than showing nothing.
-        visual.sprite = blobSprite;
-        visual.color = held.GetColor();
+        // Shows both halves of a double, so what is on the cursor is always the thing that
+        // will actually be served. Safe to run every frame: SpriteRecolor caches on sprite
+        // and color, so a steady selection is two dictionary lookups rather than two new
+        // textures, and the overlay child is created once the first time a double is held.
+        MixPainter.Paint(visual, blobSprite,
+                         SlopLogic.Instance != null ? SlopLogic.Instance.CounterRightHalf : null,
+                         held.GetMix());
     }
 }

@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class Slop : MonoBehaviour
 {
-    private Color color = Color.white;
+    private SlopMix mix = SlopMix.Single(Color.white);
     private bool isSelected = false;
 
     [Header("Visual References")]
@@ -64,11 +64,19 @@ public class Slop : MonoBehaviour
 
     // --- GETTERS & SETTERS ---
 
-    public Color GetColor() => color;
+    public SlopMix GetMix() => mix;
 
-    public void SetColor(Color newColor)
+    // The pan's first color. Kept because plenty of code only ever cares which color a pan
+    // leads with, and because a double answers "what color is this" with a half-truth
+    // rather than an error. Anything deciding whether a serve was correct must compare
+    // GetMix, not this, or every double would be served by its own first color.
+    public Color GetColor() => mix.a;
+
+    public void SetColor(Color newColor) => SetMix(SlopMix.Single(newColor));
+
+    public void SetMix(SlopMix newMix)
     {
-        color = newColor;
+        mix = newMix;
 
         if (slopSpriteRenderer == null) return;
 
@@ -76,23 +84,17 @@ public class Slop : MonoBehaviour
 
         if (recolorSprite && baseSprite != null)
         {
-            Sprite painted = SpriteRecolor.For(baseSprite, newColor);
-
-            if (painted != null)
-            {
-                // Repaint the pixels and leave the renderer tint neutral. Tinting on top
-                // of a repaint would darken it, because renderer color multiplies.
-                slopSpriteRenderer.sprite = painted;
-                slopSpriteRenderer.color = Color.white;
-                return;
-            }
-
-            // Repainting was not possible, so fall through to tinting rather than
-            // leaving every pan a flat white.
+            MixPainter.Paint(slopSpriteRenderer, baseSprite,
+                             SlopLogic.Instance != null ? SlopLogic.Instance.CounterRightHalf : null,
+                             newMix);
+            return;
         }
 
+        // Recoloring switched off, so tint instead. A double cannot be shown this way at
+        // all, since tinting one sprite can only produce one color, and it falls back to
+        // leading with the first. Recoloring is on by default for exactly this reason.
         slopSpriteRenderer.sprite = baseSprite;
-        slopSpriteRenderer.color = newColor;
+        slopSpriteRenderer.color = newMix.a;
     }
 
     // The pixel shape marking this pan when the player has said they cannot rely on color.

@@ -29,7 +29,7 @@ public class IndividualStudent : MonoBehaviour
              "already been freed, so a slow exit just reads as a bug.")]
     [SerializeField] private float exitSpeed = 34f;
 
-    private Color assignedColor;
+    private SlopMix assignedMix;
     private bool waiting;     // standing at the counter with the patience clock running
     private bool resolved;    // already dealt with, ignore any further input
 
@@ -52,7 +52,7 @@ public class IndividualStudent : MonoBehaviour
     public bool Waiting => waiting;
 
     public bool WantsSomethingMissing => SlopLogic.Instance != null
-                                         && !SlopLogic.Instance.IsOnCounter(assignedColor);
+                                         && !SlopLogic.Instance.IsOnCounter(assignedMix);
 
     public bool IsResolved => resolved;
 
@@ -86,7 +86,7 @@ public class IndividualStudent : MonoBehaviour
 
     private void Start()
     {
-        assignedColor = GenerateColor();
+        assignedMix = GenerateMix();
         ShowRequest();
     }
 
@@ -98,24 +98,20 @@ public class IndividualStudent : MonoBehaviour
         // reading either color. A kid wanting something the counter has not got still gets
         // a shape, just not one of the shapes out there. See SlopLogic.SymbolFor.
         SlopLogic logic = SlopLogic.Instance;
-        SymbolBadge.Apply(studentSpriteRenderer, logic != null ? logic.SymbolFor(assignedColor) : -1, 0.34f);
+        SymbolBadge.Apply(studentSpriteRenderer, logic != null ? logic.SymbolFor(assignedMix) : -1, 0.34f);
+
+        if (requestSprite == null)
+        {
+            studentSpriteRenderer.color = assignedMix.a;
+            return;
+        }
 
         // Repainting beats tinting here for the same reason it does on the pans: tinting
         // multiplies, so a red source blob can never become blue. Repainting also means
-        // the bubble is literally the same artwork as the pan the player has to match.
-        if (requestSprite != null)
-        {
-            Sprite painted = SpriteRecolor.For(requestSprite, assignedColor);
-
-            if (painted != null)
-            {
-                studentSpriteRenderer.sprite = painted;
-                studentSpriteRenderer.color = Color.white;
-                return;
-            }
-        }
-
-        studentSpriteRenderer.color = assignedColor;
+        // the bubble is literally the same artwork as the pan the player has to match,
+        // which now includes matching a double half for half.
+        MixPainter.Paint(studentSpriteRenderer, requestSprite,
+                         logic != null ? logic.BubbleRightHalf : null, assignedMix);
     }
 
     // Patience starts when they reach the counter, not when they spawn. Otherwise the
@@ -210,10 +206,10 @@ public class IndividualStudent : MonoBehaviour
         return onMe;
     }
 
-    private Color GenerateColor()
+    private SlopMix GenerateMix()
     {
         SlopLogic logic = SlopLogic.Instance;
-        if (logic == null || logic.GetColorCount() == 0) return Color.gray;
+        if (logic == null || logic.GetColorCount() == 0) return SlopMix.Single(Color.gray);
 
         // A small share of kids want something that is not on the counter at all. For them
         // the only correct answer is the sorry-we're-out button.
@@ -225,9 +221,13 @@ public class IndividualStudent : MonoBehaviour
             ? GameManager.Instance.NextRequestIsOutOfStock()
             : Random.value < 0.12f;
 
-        if (missing) return logic.GetOffPaletteColor();
+        if (missing) return logic.GetOffPaletteMix();
 
-        return logic.GetColor(Random.Range(0, logic.GetColorCount()));
+        // Drawn from the pans rather than from the color list, because those are no longer
+        // the same thing. A pan promoted to a double is holding a pair, and its old plain
+        // color is not on the counter any more, so asking for a color by index would hand
+        // out orders that cannot be filled.
+        return logic.GetRandomMix();
     }
 
     private void TryServeStudent()
@@ -245,7 +245,9 @@ public class IndividualStudent : MonoBehaviour
 
         // The selection deliberately survives the serve, so you can hand the same color
         // to several kids in a row without re-clicking the pan every time.
-        Resolve(selected.GetColor() == assignedColor, false);
+        // GetMix, not GetColor. A double leads with its first color, so comparing colors
+        // would let the red-and-blue pan serve every kid who asked for plain red.
+        Resolve(selected.GetMix().Matches(assignedMix), false);
     }
 
     // Driven by the sorry-we're-out button, which now acts on the front of the line
@@ -260,7 +262,7 @@ public class IndividualStudent : MonoBehaviour
         if (PukeManager.Instance != null && PukeManager.Instance.ServingBlocked) return;
 
         // Right only if this kid genuinely wanted something that is not on the counter.
-        Resolve(!logic.IsOnCounter(assignedColor), false);
+        Resolve(!logic.IsOnCounter(assignedMix), false);
     }
 
     private void Resolve(bool correct, bool walkedOut)
@@ -324,12 +326,15 @@ public class IndividualStudent : MonoBehaviour
     }
 
     // --- GETTERS & SETTERS ---
-    public Color GetAssignedColor() => assignedColor;
-    public void SetAssignedColor(Color color)
+    public SlopMix GetAssignedMix() => assignedMix;
+    public void SetAssignedMix(SlopMix mix)
     {
-        assignedColor = color;
+        assignedMix = mix;
         ShowRequest();
     }
+
+    public Color GetAssignedColor() => assignedMix.a;
+    public void SetAssignedColor(Color color) => SetAssignedMix(SlopMix.Single(color));
 
     public bool GetIsStaying() => waiting;
     public float GetStudentTimer() => patienceLeft;
