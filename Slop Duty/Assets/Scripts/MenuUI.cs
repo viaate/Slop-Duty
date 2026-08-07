@@ -153,6 +153,8 @@ public class MenuUI : MonoBehaviour
     private GameObject boardPanel;
     private GameObject settingsPanel;
     private GameObject accessPanel;
+    private TMP_InputField nameField;
+    private PixelText nameHint;
     private PixelText volumeReadout;
     private PixelText accessNote;
     private HoverTint[] visionTints;
@@ -206,9 +208,38 @@ public class MenuUI : MonoBehaviour
 
     private void StartTraining() => Leave(1);
 
+    // Saved as it is typed rather than on some confirm button, so there is no way to enter a
+    // name, walk away and find it was never kept.
+    private void OnNameChanged(string value)
+    {
+        HighScores.PlayerName = value;
+
+        if (nameHint == null) return;
+
+        // Told, rather than left to be discovered. Somebody who types their own name in and
+        // then sees the whole canteen turn into them with no warning assumes it is a bug.
+        // Silent the rest of the time, so the line is only ever there when it has news.
+        nameHint.Text = BossDirector.FaceFor(value) != null
+            ? "NICE. EVERYONE LOOKS LIKE YOU NOW."
+            : string.Empty;
+    }
+
     private void Leave(int tutorialFlag)
     {
         if (leaving) return;
+
+        // Asked for before the shift, not after it.
+        //
+        // The name only used to be collected on the game over screen, next to the submit
+        // button, which is the worst possible moment: the run is over, the player is reading
+        // their score, and being asked to type is an obstacle between them and trying again.
+        // Settings is already open here and already has the field, so it doubles as the
+        // prompt rather than needing a screen of its own.
+        if (string.IsNullOrWhiteSpace(HighScores.PlayerName))
+        {
+            OpenSettingsForName();
+            return;
+        }
 
         leaving = true;
 
@@ -231,6 +262,24 @@ public class MenuUI : MonoBehaviour
         boardPanel.SetActive(opening);
 
         if (opening) RequestBoard();
+    }
+
+    private void OpenSettingsForName()
+    {
+        menuRoot.SetActive(false);
+        settingsPanel.SetActive(true);
+        accessPanel.SetActive(false);
+
+        if (nameHint != null)
+        {
+            nameHint.Text = "PICK A NAME TO START";
+            nameHint.Tint = accent;
+        }
+
+        // Focused, so the very first thing they can do is type. Landing on a settings screen
+        // and having to work out which box matters is a worse first impression than the
+        // question itself.
+        if (nameField != null) nameField.Select();
     }
 
     private void ToggleSettings()
@@ -259,20 +308,37 @@ public class MenuUI : MonoBehaviour
     {
         RectTransform panel = MakePanel(root, "Settings Panel", "SETTINGS", out settingsPanel);
 
+        PixelText nameLabel = MakeText("Name Label", panel, 30, TextAlignmentOptions.Top, ink,
+                                       new Vector2(0.5f, 1f), new Vector2(0f, -200f), new Vector2(900f, 40f));
+        nameLabel.Text = "NAME";
+
+        nameField = InputField("Name", panel, new Vector2(0f, -272f), new Vector2(460f, 64f));
+        nameField.text = HighScores.PlayerName;
+        nameField.onValueChanged.AddListener(OnNameChanged);
+
+        // Empty unless there is something worth saying. It used to explain that the name
+        // goes on the leaderboard, which is a whole line of screen spent on something the
+        // player finds out anyway, sitting between two controls that wanted the room. It
+        // now only speaks up for the two cases that are not obvious: being asked for a name
+        // before a shift, and the easter egg firing.
+        nameHint = MakeText("Name Hint", panel, 22, TextAlignmentOptions.Top, accent,
+                            new Vector2(0.5f, 1f), new Vector2(0f, -348f), new Vector2(1100f, 30f));
+        nameHint.Text = string.Empty;
+
         PixelText volumeLabel = MakeText("Volume Label", panel, 30, TextAlignmentOptions.Top, ink,
-                                         new Vector2(0.5f, 1f), new Vector2(0f, -260f), new Vector2(900f, 40f));
+                                         new Vector2(0.5f, 1f), new Vector2(0f, -430f), new Vector2(900f, 40f));
         volumeLabel.Text = "VOLUME";
 
         volumeReadout = MakeText("Volume Value", panel, 44, TextAlignmentOptions.Top, accent,
-                                 new Vector2(0.5f, 1f), new Vector2(0f, -320f), new Vector2(900f, 56f));
+                                 new Vector2(0.5f, 1f), new Vector2(0f, -482f), new Vector2(900f, 56f));
 
-        Slider slider = MakeSlider("Volume", panel, new Vector2(0f, -420f), new Vector2(760f, 40f));
+        Slider slider = MakeSlider("Volume", panel, new Vector2(0f, -572f), new Vector2(760f, 40f));
         slider.value = Settings.Volume;
         slider.onValueChanged.AddListener(OnVolumeChanged);
 
         ShowVolume(Settings.Volume);
 
-        MakeButton("Access", panel, "ACCESSIBILITY", new Vector2(0f, -560f), new Vector2(480f, 84f),
+        MakeButton("Access", panel, "ACCESSIBILITY", new Vector2(0f, -680f), new Vector2(480f, 84f),
                    new Vector2(0.5f, 1f), 30)
             .onClick.AddListener(ToggleAccess);
 
@@ -810,6 +876,43 @@ public class MenuUI : MonoBehaviour
         return slider;
     }
 
+    // Mirrored from GameUI's, since the two files deliberately do not share builders. The
+    // character limit matches the leaderboard's, so a name that fits here cannot be cut
+    // short later by the thing it was typed for.
+    private TMP_InputField InputField(string objectName, RectTransform parent, Vector2 position, Vector2 size)
+    {
+        GameObject go = new GameObject(objectName, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+
+        Image img = go.AddComponent<Image>();
+        img.color = new Color(ink.r, ink.g, ink.b, 0.10f);
+
+        Anchor(go.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), position, size);
+
+        GameObject area = new GameObject("Text Area", typeof(RectTransform));
+        area.transform.SetParent(go.transform, false);
+        area.AddComponent<RectMask2D>();
+        Stretch(area.GetComponent<RectTransform>(), new Vector2(12f, 4f), new Vector2(-12f, -4f));
+
+        TextMeshProUGUI text = RawText("Text", area.GetComponent<RectTransform>(), 28,
+                                       TextAlignmentOptions.Center, ink);
+        Stretch(text.rectTransform, Vector2.zero, Vector2.zero);
+
+        TextMeshProUGUI hint = RawText("Placeholder", area.GetComponent<RectTransform>(), 28,
+                                       TextAlignmentOptions.Center, inkDim);
+        Stretch(hint.rectTransform, Vector2.zero, Vector2.zero);
+        hint.text = "YOUR NAME";
+
+        TMP_InputField field = go.AddComponent<TMP_InputField>();
+        field.textViewport = area.GetComponent<RectTransform>();
+        field.textComponent = text;
+        field.placeholder = hint;
+        field.characterLimit = 12;
+        field.targetGraphic = img;
+
+        return field;
+    }
+
     private static Image MakeBlock(string objectName, Transform parent, Color color, bool clickable)
     {
         GameObject go = new GameObject(objectName, typeof(RectTransform));
@@ -840,6 +943,17 @@ public class MenuUI : MonoBehaviour
 
                 main.text = value;
                 shadow.text = value;
+            }
+        }
+
+        // Only the main copy. The shadow keeps its own dark, which is the entire reason
+        // there are two of them.
+        public Color Tint
+        {
+            set
+            {
+                if (main.color == value) return;
+                main.color = value;
             }
         }
     }

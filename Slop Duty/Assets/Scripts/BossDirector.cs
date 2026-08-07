@@ -20,6 +20,11 @@ public class BossDirector : MonoBehaviour
                  "standing there at once, each with their own order to fill.")]
         public Sprite partner;
 
+        [Tooltip("Optional prefab spawned behind them for the whole encounter, for anyone " +
+                 "who deserves an entrance. A particle system, an animated sprite, anything " +
+                 "prefabbed. It is placed behind the portrait, never in front.")]
+        public GameObject aura;
+
         [Tooltip("Which perk beating them is worth. Keep these distinct: two people handing " +
                  "out the same perk makes it not matter who turned up.")]
         public BoostKind boost = BoostKind.BigTips;
@@ -46,6 +51,11 @@ public class BossDirector : MonoBehaviour
         // at once, so the same number would be over in half the time.
         new Contender { name = "JOY & LUCAS", boost = BoostKind.ExtraHands, orders = 6, seconds = 20f },
     };
+
+    [Tooltip("Chance per boss day that the person you named yourself after turns up instead " +
+             "of the next one in the rota. 0.25 is half again as often as an even share of " +
+             "six would give them. 0 switches the favouritism off.")]
+    [SerializeField, Range(0f, 1f)] private float favouriteChance = 0.25f;
 
     [Tooltip("How far apart a pair stands, in world units. They are centred on the same spot " +
              "a lone boss would use, so this splits them either side of it.")]
@@ -120,6 +130,54 @@ public class BossDirector : MonoBehaviour
     // because Active is cleared the same moment it ends: anything watching that field would
     // see the boss vanish and never see the result.
     public event System.Action<BossVisitor> Resolved;
+
+    // --- naming yourself after somebody in the cast ---
+
+    // The picture belonging to whoever the player named themselves after, or null.
+    //
+    // The contender list is reused as the cast rather than keeping a second list of names
+    // and faces somewhere else. It already has every person in the game with a picture
+    // attached, and two lists of the same people would drift the moment anybody was added
+    // to one of them.
+    //
+    // A pair is split on the ampersand, so "JOY" finds Joy and "LUCAS" finds Lucas out of
+    // the same entry rather than the duo only answering to both names at once.
+    public static Sprite FaceFor(string who)
+    {
+        BossDirector director = Instance;
+        if (director == null || string.IsNullOrWhiteSpace(who)) return null;
+
+        string wanted = who.Trim().ToUpperInvariant();
+
+        foreach (Contender c in director.contenders)
+        {
+            if (c == null || string.IsNullOrEmpty(c.name)) continue;
+
+            string[] members = c.name.Split('&');
+
+            for (int i = 0; i < members.Length; i++)
+            {
+                if (members[i].Trim().ToUpperInvariant() != wanted) continue;
+
+                return i == 0 || c.partner == null ? c.portrait : c.partner;
+            }
+        }
+
+        return null;
+    }
+
+    // Found once and cached, so the students asking about it are not each searching the
+    // scene. They ask on spawn, which is often.
+    private static BossDirector cached;
+
+    private static BossDirector Instance
+    {
+        get
+        {
+            if (cached == null) cached = FindFirstObjectByType<BossDirector>();
+            return cached;
+        }
+    }
 
     private void Start()
     {
@@ -264,7 +322,7 @@ public class BossDirector : MonoBehaviour
 
         active.Begin(cast, bubbleArt, who.name, who.boost, who.orders,
                      who.seconds, stand, dropHeight, shakeAmount, shakeSeconds, bossScale,
-                     secondsPerOrder, duoSpread);
+                     secondsPerOrder, duoSpread, who.aura);
     }
 
     // Centre of the line rather than the front slot. The front slot is off to one side, and
@@ -280,6 +338,17 @@ public class BossDirector : MonoBehaviour
     private Contender Pick()
     {
         if (contenders.Length == 0) return null;
+
+        // Named yourself after somebody? They turn up half again as often as anyone else.
+        //
+        // Rolled before the bag rather than folded into it, because the two want opposite
+        // things: a shuffle bag exists to guarantee everyone gets a turn, and a favourite
+        // exists to break that evenness on purpose. Weighting the bag would have done
+        // neither properly. The bag still runs underneath, so the other five keep taking
+        // their turns in order whenever this roll does not fire.
+        Contender favourite = Favourite();
+
+        if (favourite != null && Random.value < favouriteChance) return favourite;
 
         int seen = PlayerPrefs.GetInt(BagKey, 0);
 
@@ -298,6 +367,27 @@ public class BossDirector : MonoBehaviour
         PlayerPrefs.Save();
 
         return contenders[index];
+    }
+
+    // Whichever entry the player named themselves after, or null if the name matches nobody.
+    private Contender Favourite()
+    {
+        string who = HighScores.PlayerName;
+        if (string.IsNullOrWhiteSpace(who)) return null;
+
+        string wanted = who.Trim().ToUpperInvariant();
+
+        foreach (Contender c in contenders)
+        {
+            if (c == null || string.IsNullOrEmpty(c.name)) continue;
+
+            foreach (string member in c.name.Split('&'))
+            {
+                if (member.Trim().ToUpperInvariant() == wanted) return c;
+            }
+        }
+
+        return null;
     }
 
     private const string BagKey = "SlopDuty.BossBag";

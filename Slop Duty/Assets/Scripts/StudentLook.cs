@@ -36,8 +36,20 @@ public class StudentLook : MonoBehaviour
     // each instantiated prefab gets its own copy of the array and the references differ.
     private static readonly Dictionary<string, List<int>> bags = new Dictionary<string, List<int>>();
 
+    // True when this kid is wearing somebody's face instead of a rolled outfit.
+    private bool impersonating;
+
     public void Randomize()
     {
+        // Name yourself after somebody in the cast and the whole canteen turns into them.
+        //
+        // Purely a joke, but it has to switch off the layers rather than draw on top of
+        // them: these characters are one finished picture each, and a rolled shirt or a
+        // rolled hairstyle underneath would show around the edges of it.
+        if (Impersonate()) return;
+
+        impersonating = false;
+
         Deal(skin, skins, "skin");
         Deal(pants, trousers, "pants");
         Deal(shirt, shirts, "shirt");
@@ -46,10 +58,36 @@ public class StudentLook : MonoBehaviour
         if (face != null && normalFace != null) face.sprite = normalFace;
     }
 
+    private bool Impersonate()
+    {
+        Sprite face = BossDirector.FaceFor(HighScores.PlayerName);
+        if (face == null) return false;
+
+        impersonating = true;
+
+        // The whole person goes on the skin layer, since that is the one at the bottom.
+        if (skin != null) skin.sprite = face;
+
+        Hide(pants);
+        Hide(shirt);
+        Hide(hair);
+        Hide(this.face);
+
+        return true;
+    }
+
+    private static void Hide(SpriteRenderer r)
+    {
+        if (r != null) r.enabled = false;
+    }
+
     // Called when a kid is failed, so they leave wearing the right expression.
     public void ShowPukeFace()
     {
-        if (face == null || pukeFace == null) return;
+        // Nothing doing while impersonating: the face layer is switched off, so turning it
+        // back on would stamp a loose pair of eyes over somebody's finished portrait.
+        if (impersonating || face == null || pukeFace == null) return;
+
         face.sprite = pukeFace;
     }
 

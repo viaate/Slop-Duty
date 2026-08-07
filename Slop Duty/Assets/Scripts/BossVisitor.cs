@@ -19,13 +19,17 @@ public class BossVisitor : MonoBehaviour
     private enum Phase { Falling, Ordering, Leaving }
 
     // One entry per person. A solo boss has one, the TAs have two, and everything below
-    // works the same either way: orders are handed out to whoever is free and clicks are
+    // works the same either way: each seat owns a fixed share of the orders, and clicks are
     // matched against whichever seat was actually under the cursor.
     private readonly List<BossSeat> seats = new List<BossSeat>();
 
     private readonly List<Color> orders = new List<Color>();
     private int served;
-    private int handedOut;
+
+    // Where each seat is up to in the order list. They step through it by the number of
+    // seats, so seat 0 takes 0, 2, 4 and seat 1 takes 1, 3, 5: an exactly even share rather
+    // than whoever happens to be free grabbing the next one.
+    private int[] cursor;
 
     private BoostKind prize;
     private string owner = string.Empty;
@@ -63,7 +67,7 @@ public class BossVisitor : MonoBehaviour
 
     public void Begin(Sprite[] portraits, BossDirector.BubbleArt art, string who, BoostKind boost,
                       int orderCount, float seconds, Vector3 stand, float dropHeight,
-                      float shake, float shakeTime, float scale, float pay, float spread)
+                      float shake, float shakeTime, float scale, float pay, float spread, GameObject aura)
     {
         owner = who;
         prize = boost;
@@ -87,13 +91,13 @@ public class BossVisitor : MonoBehaviour
         SortingGroup group = gameObject.AddComponent<SortingGroup>();
         group.sortingOrder = 0;
 
-        BuildSeats(portraits, art, spread);
+        BuildSeats(portraits, art, spread, aura);
         RollOrders(orderCount);
     }
 
     // One seat per portrait, spread evenly about the centre so a duo lands either side of
     // where a solo boss would have stood rather than one of them being off to a side.
-    private void BuildSeats(Sprite[] portraits, BossDirector.BubbleArt art, float spread)
+    private void BuildSeats(Sprite[] portraits, BossDirector.BubbleArt art, float spread, GameObject aura)
     {
         seats.Clear();
 
@@ -113,6 +117,7 @@ public class BossVisitor : MonoBehaviour
 
             BossSeat seat = go.AddComponent<BossSeat>();
             seat.Build(portraits[i], art);
+            seat.AddAura(aura);
 
             seats.Add(seat);
         }
@@ -126,7 +131,12 @@ public class BossVisitor : MonoBehaviour
         SlopLogic logic = SlopLogic.Instance;
 
         orders.Clear();
-        if (logic == null || logic.GetColorCount() == 0) return;
+        if (logic == null || logic.GetColorCount() == 0 || seats.Count == 0) return;
+
+        // Rounded up to a whole number of helpings each, so a pair always eats exactly the
+        // same amount. Asking for five between two people can only ever be three and two,
+        // and one of them being hungrier than the other is not a duo, it is a bug report.
+        count = Mathf.CeilToInt(count / (float)seats.Count) * seats.Count;
 
         int available = logic.GetColorCount();
 
@@ -147,24 +157,33 @@ public class BossVisitor : MonoBehaviour
             orders.Add(next);
         }
 
-        handedOut = 0;
+        // Each seat starts on its own index and steps by the number of seats from there.
+        cursor = new int[seats.Count];
+        for (int i = 0; i < cursor.Length; i++) cursor[i] = i;
+
         DealOrders();
     }
 
-    // Everybody with nothing to ask for takes the next order off the pile.
+    // Everybody with nothing to ask for takes the next order from THEIR OWN share.
     //
-    // A duo therefore has TWO live requests at once rather than taking turns, which is the
+    // A duo therefore has two live requests at once rather than taking turns, which is the
     // whole point of there being two of them: you choose who to serve, and one held scoop
     // might satisfy either. Taking turns would just be a solo boss with a spare drawing.
+    //
+    // Their shares are fixed rather than raced for. Dealing to whoever happened to be free
+    // meant a slow eater could end up with two helpings and a fast one with four, which
+    // reads as the game having lost count.
     private void DealOrders()
     {
+        if (cursor == null) return;
+
         for (int i = 0; i < seats.Count; i++)
         {
             if (seats[i] == null || seats[i].Asking) continue;
-            if (handedOut >= orders.Count) continue;
+            if (cursor[i] >= orders.Count) continue;
 
-            seats[i].Ask(orders[handedOut]);
-            handedOut++;
+            seats[i].Ask(orders[cursor[i]]);
+            cursor[i] += seats.Count;
         }
     }
 

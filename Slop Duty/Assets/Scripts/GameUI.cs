@@ -87,6 +87,7 @@ public class GameUI : MonoBehaviour
     private PixelText weekLabel;
     private PixelText clockLabel;
     private PixelText quotaLabel;
+    private PixelText scoreLabel;
     private PixelText bossLabel;
     private PixelText bossPrize;
     private PixelText boostLabel;
@@ -234,6 +235,10 @@ public class GameUI : MonoBehaviour
             dayLabel.Text = DayConfig.NameFor(game.Day);
             weekLabel.Text = game.Day <= 0 ? "TRAINING" : $"WEEK {DayConfig.WeekFor(game.Day)}";
             quotaLabel.Text = $"{game.ResolvedToday}/{game.QuotaToday}";
+
+            // The same number the game over screen and the leaderboard use, so what is on
+            // the HUD during a run is exactly what the run will be worth at the end of it.
+            scoreLabel.Text = $"SCORE {HighScores.ScoreOf(game.Stats)}";
         }
 
         if (timer != null && clockLabel != null)
@@ -694,6 +699,12 @@ public class GameUI : MonoBehaviour
 
         quotaLabel = MakeText("Quota", root, 22, TextAlignmentOptions.TopRight, inkDim,
                           new Vector2(1f, 1f), new Vector2(-40f, -100f), new Vector2(400f, 30f));
+
+        // Small and under the quota, deliberately quiet. The score is what a run is worth
+        // afterwards, not something to play toward moment to moment, so it should be
+        // findable without ever competing with the clock.
+        scoreLabel = MakeText("Score", root, 20, TextAlignmentOptions.TopRight, inkDim,
+                          new Vector2(1f, 1f), new Vector2(-40f, -128f), new Vector2(400f, 28f));
 
         // Top centre, between the day on the left and the clock on the right. Empty and
         // invisible until somebody drops in.

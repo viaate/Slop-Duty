@@ -286,8 +286,8 @@ public class GameManager : MonoBehaviour
     // again to keep going: from Sunday or any of week 1 it lands on day 6, then 11, then 16.
     //
     // Compiled out of anything but the editor and a development build, so it cannot ship to
-    // itch as a cheat. That is a compile-time guard rather than a runtime check on purpose,
-    // because a runtime check leaves the key handler in the build for somebody to find.
+    // itch as a cheat. A compile-time guard rather than a runtime check on purpose, because
+    // a runtime check leaves the key handler sitting in the build for somebody to find.
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     private void Update()
     {
@@ -306,8 +306,8 @@ public class GameManager : MonoBehaviour
 
         ApplyDay();
 
-        // The clock is only started by the real day-one rollover, so a jump that skips
-        // past it has to start the clock itself or the run sits at zero forever.
+        // The clock is only started by the real day-one rollover, so a jump that skips past
+        // it has to start the clock itself or the run sits at zero forever.
         if (timer != null && !timer.Running) timer.Begin();
 
         Debug.Log($"Skipped to day {Day}, week {DayConfig.WeekFor(Day)}.", this);

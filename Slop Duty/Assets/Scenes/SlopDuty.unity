@@ -431,29 +431,47 @@ MonoBehaviour:
   contenders:
   - name: OLIVIA
     portrait: {fileID: 21300000, guid: a379b0c170b46e84e975514a0f07de93, type: 3}
+    partner: {fileID: 0}
+    aura: {fileID: 0}
     boost: 1
     orders: 4
     seconds: 16
   - name: SELENA
     portrait: {fileID: 21300000, guid: d676f60f05d44124683e34f2d4d3e0e7, type: 3}
+    partner: {fileID: 0}
+    aura: {fileID: 0}
     boost: 2
     orders: 4
     seconds: 16
   - name: JOHN
     portrait: {fileID: 21300000, guid: b5f419d7ee6f9ed47af96b4dc11de84f, type: 3}
+    partner: {fileID: 0}
+    aura: {fileID: 0}
     boost: 3
     orders: 4
     seconds: 16
   - name: TANEIM
     portrait: {fileID: 21300000, guid: 5b10e1b18dfcd93419b5b7bbf34bb359, type: 3}
+    partner: {fileID: 0}
+    aura: {fileID: 2137115844711934793, guid: 02d47ff4930884b4a978177ee93bed4d, type: 3}
     boost: 4
     orders: 4
     seconds: 16
   - name: AL
     portrait: {fileID: 21300000, guid: a4bd36b496734244190c5038dc5ef346, type: 3}
+    partner: {fileID: 0}
+    aura: {fileID: 0}
     boost: 5
     orders: 4
     seconds: 16
+  - name: Joy & Lucas
+    portrait: {fileID: 21300000, guid: 3460b7712fd064f419f0b97019777292, type: 3}
+    partner: {fileID: 21300000, guid: f710cf8cfcd55764fb904943953a1010, type: 3}
+    aura: {fileID: 0}
+    boost: 6
+    orders: 4
+    seconds: 16
+  duoSpread: 1.3
   firstWeek: 2
   entranceDelay: 4
   bubbleArt:

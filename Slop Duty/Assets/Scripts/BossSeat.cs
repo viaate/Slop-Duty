@@ -70,6 +70,28 @@ public class BossSeat : MonoBehaviour
         box.offset = portrait.bounds.center;
     }
 
+    // Something showy behind them: a particle system, an animated sprite, anything that is
+    // a prefab. Optional, and only the people who warrant it get one.
+    //
+    // Parented to the seat so it falls in with them and leaves with them, and pushed behind
+    // the portrait rather than in front. An effect meant to make somebody look impressive
+    // has to be behind them, or it is just something covering their face.
+    public void AddAura(GameObject prefab)
+    {
+        if (prefab == null) return;
+
+        GameObject aura = Instantiate(prefab, transform);
+        aura.transform.localPosition = Vector3.zero;
+
+        // One behind the body, which sits at 2. Inside the boss's SortingGroup, so this is
+        // ordering within the encounter rather than against the rest of the scene.
+        foreach (Renderer r in aura.GetComponentsInChildren<Renderer>(true))
+        {
+            r.sortingLayerID = body != null ? body.sortingLayerID : r.sortingLayerID;
+            r.sortingOrder = 1;
+        }
+    }
+
     public void Ask(Color color)
     {
         want = color;
